@@ -499,10 +499,13 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(self.endpoint, json=payload)
                 if resp.status_code != 200:
-                    return await self.fallback.generate_summary(request)
+                    fb = await self.fallback.generate_summary(request)
+                    fb.provider_used = "mock-statutory-engine (fallback)"
+                    fb.is_ai_generated = False
+                    return fb
 
                 res_json = resp.json()
                 raw_text = res_json["candidates"][0]["content"]["parts"][0]["text"]
@@ -531,7 +534,10 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
                 )
         except Exception:
             # Fallback seamlessly on any network error, format error, or rate limit
-            return await self.fallback.generate_summary(request)
+            fb = await self.fallback.generate_summary(request)
+            fb.provider_used = "mock-statutory-engine (fallback)"
+            fb.is_ai_generated = False
+            return fb
 
     async def assistant_chat(
         self, request: InspectionAssistantRequest
@@ -578,10 +584,14 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(self.endpoint, json=payload)
                 if resp.status_code != 200:
-                    return await self.fallback.assistant_chat(request)
+                    fb = await self.fallback.assistant_chat(request)
+                    fb.provider_used = "mock-statutory-engine (fallback)"
+                    fb.is_ai_generated = False
+                    fb.is_offline_fallback = True
+                    return fb
 
                 res_json = resp.json()
                 raw_text = res_json["candidates"][0]["content"]["parts"][0]["text"]
@@ -619,7 +629,11 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
                     legal_disclaimer=STATUTORY_DISCLAIMER,
                 )
         except Exception:
-            return await self.fallback.assistant_chat(request)
+            fb = await self.fallback.assistant_chat(request)
+            fb.provider_used = "mock-statutory-engine (fallback)"
+            fb.is_ai_generated = False
+            fb.is_offline_fallback = True
+            return fb
 
 
 def get_inspection_provider() -> InspectionAiProvider:

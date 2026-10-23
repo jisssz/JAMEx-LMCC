@@ -138,6 +138,7 @@ from app.schemas.copilot import (
 from app.routers.inspection import (
     router as inspection_router,
     create_inspection_summary,
+    get_inspection_summary_for_report,
     inspection_assistant,
 )
 from app.schemas.inspection import (
@@ -162,6 +163,7 @@ app.add_api_route("/copilot/chat", copilot_chat, methods=["POST"], response_mode
 app.add_api_route("/rules/search", search_statutory_rules, methods=["GET"], response_model=LegalRuleSearchResponse, tags=["copilot"])
 app.add_api_route("/rules/{rule_id}", get_statutory_rule, methods=["GET"], response_model=LegalRuleItem, tags=["copilot"])
 app.add_api_route("/inspection/summary", create_inspection_summary, methods=["POST"], response_model=InspectionSummaryResponse, tags=["inspection"])
+app.add_api_route("/inspection/summary/{report_id}", get_inspection_summary_for_report, methods=["GET"], response_model=InspectionSummaryResponse, tags=["inspection"])
 app.add_api_route("/inspection/assistant", inspection_assistant, methods=["POST"], response_model=InspectionAssistantResponse, tags=["inspection"])
 
 app.add_api_route("/analytics/summary", get_analytics_summary, methods=["GET"], response_model=AnalyticsSummary, tags=["analytics"])

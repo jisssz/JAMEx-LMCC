@@ -189,14 +189,15 @@ class LocalGroundedCopilot:
 
 class GeminiGroundedCopilot:
     """
-    Google Gemini 1.5 Flash Grounded Copilot.
+    Google Gemini Grounded Copilot.
     Conditioned strictly on statutory rules and inspection context.
     """
 
-    def __init__(self, api_key: str):
-        self.api_key = api_key
+    def __init__(self, api_key: str, model: Optional[str] = None):
+        self.api_key = api_key.strip()
+        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-1.5-flash").strip()
         self.endpoint = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.api_key}"
+            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
         )
 
     async def answer(self, request: CopilotQueryRequest) -> CopilotResponse:
@@ -232,7 +233,7 @@ class GeminiGroundedCopilot:
             },
         }
 
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(self.endpoint, json=payload)
             if resp.status_code != 200:
                 raise Exception(f"Gemini API returned status {resp.status_code}: {resp.text}")
@@ -268,22 +269,25 @@ class GeminiGroundedCopilot:
                     "How do I correct an OCR misreading using Human Review?",
                 ]),
                 is_offline_fallback=False,
-                provider_used="gemini-1.5-flash",
+                provider_used=f"gemini-{self.model}",
             )
 
 
 async def process_copilot_query(request: CopilotQueryRequest) -> CopilotResponse:
     """Dispatches copilot query to Gemini (if configured) or falls back to LocalGroundedCopilot."""
+    gemini_key = (os.getenv("GEMINI_API_KEY") or "").strip()
     provider_type = (os.getenv("COPILOT_PROVIDER") or "").strip().lower()
 
-    if provider_type == "gemini":
-        gemini_key = os.getenv("GEMINI_API_KEY")
-        if gemini_key:
-            try:
-                copilot = GeminiGroundedCopilot(gemini_key)
-                return await copilot.answer(request)
-            except Exception:
-                # Seamless fallback to local grounded engine on API error
-                pass
+    if gemini_key and provider_type not in ["mock", "local"]:
+        try:
+            model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+            copilot = GeminiGroundedCopilot(api_key=gemini_key, model=model)
+            return await copilot.answer(request)
+        except Exception:
+            # Transparent fallback on any network error, rate limit, or invalid response
+            fallback_res = LocalGroundedCopilot.answer(request)
+            fallback_res.is_offline_fallback = True
+            fallback_res.provider_used = "local-grounded-engine (fallback)"
+            return fallback_res
 
     return LocalGroundedCopilot.answer(request)

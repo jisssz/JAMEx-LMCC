@@ -354,9 +354,13 @@ export const InspectionSummaryCard: React.FC<InspectionSummaryCardProps> = ({
               <Info className="w-4 h-4 text-violet-400 shrink-0" />
               <span>{summary.disclaimer}</span>
             </div>
-            {summary.isOfflineFallback && (
-              <Badge variant="outline" className="text-[10px] text-slate-400 border-white/10 shrink-0 w-fit">
+            {summary.isOfflineFallback ? (
+              <Badge variant="outline" className="text-[10px] text-slate-400 border-white/10 shrink-0 w-fit font-mono">
                 Statutory Offline Engine
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[10px] text-violet-300 border-violet-500/30 bg-violet-500/10 shrink-0 w-fit font-mono">
+                ✨ Live AI Engine ({summary.providerUsed})
               </Badge>
             )}
           </div>

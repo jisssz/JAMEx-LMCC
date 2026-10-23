@@ -1,3 +1,4 @@
+import json
 import pytest
 from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
@@ -11,8 +12,14 @@ from app.services.inspection.provider import (
     GeminiInspectionAiProvider,
     get_inspection_provider,
 )
+from app.db import Base
+from tests.test_report import client, engine
 
-client = TestClient(app)
+@pytest.fixture(autouse=True)
+def setup_test_db():
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
 
 
 def test_valid_inspection_summary_generation():
@@ -298,3 +305,229 @@ def test_gemini_provider_with_api_key_and_custom_model(monkeypatch):
     assert res is not None
     assert "REVIEW" in res.overall_summary
     assert len(res.declarations_requiring_attention) >= 1
+
+
+def test_scenario_a_valid_credentials_and_successful_gemini_call(monkeypatch):
+    """
+    Scenario A: Valid Gemini credentials with successful external provider call.
+    Verifies that when Gemini returns 200 with structured JSON, the response has
+    is_ai_generated: True, provider_used: 'gemini-gemini-1.5-flash', and conforms to schema.
+    """
+    import asyncio
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("GEMINI_API_KEY", "valid-fake-gemini-key")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-1.5-flash")
+
+    gemini_json_content = json.dumps({
+        "overall_summary": "Forensic screening completed via Google Gemini AI for 'Golden Harvest Wheat Flour'.",
+        "key_findings": ["All mandatory declarations under Rule 6(1) detected and validated."],
+        "declarations_requiring_attention": [],
+        "evidence_explanation": ["Clear front and back panel declarations conform to G.S.R. 779(E)."],
+        "applicable_rules": ["Rule 6(1)(da) (MRP)", "Rule 6(1)(c) (Net Qty)"],
+        "recommended_next_steps": ["Maintain standard batch records."],
+    })
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "candidates": [
+            {"content": {"parts": [{"text": gemini_json_content}]}}
+        ]
+    }
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = mock_resp
+        provider = get_inspection_provider()
+        assert isinstance(provider, GeminiInspectionAiProvider)
+
+        req = InspectionSummaryRequest(
+            product_name="Golden Harvest Wheat Flour",
+            verdict="PASS",
+            extracted_declarations={"mrp": "₹250 (Incl. of all taxes)", "net_quantity": "5 kg"},
+        )
+        res = asyncio.run(provider.generate_summary(req))
+
+        assert res.is_ai_generated is True
+        assert res.provider_used == "gemini-gemini-1.5-flash"
+        assert "Golden Harvest" in res.overall_summary
+        assert len(res.key_findings) == 1
+        assert len(res.applicable_rules) == 2
+
+
+def test_scenario_c_gemini_timeout_handled_gracefully(monkeypatch):
+    """
+    Scenario C.1: External Gemini call times out.
+    Verifies graceful fallback to deterministic statutory engine with provider_used: 'mock-statutory-engine (fallback)'.
+    """
+    import asyncio
+    import httpx
+
+    monkeypatch.setenv("GEMINI_API_KEY", "valid-fake-gemini-key")
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.side_effect = httpx.TimeoutException("Connection timed out after 10.0s")
+        provider = get_inspection_provider()
+
+        req = InspectionSummaryRequest(
+            product_name="Delayed Response Commodity",
+            verdict="REVIEW",
+            flagged_rules=["LM-PCR-2011-R6-1-DA"],
+        )
+        res = asyncio.run(provider.generate_summary(req))
+
+        assert res.is_ai_generated is False
+        assert res.provider_used == "mock-statutory-engine (fallback)"
+        assert "REVIEW" in res.overall_summary
+        assert len(res.declarations_requiring_attention) >= 1
+
+
+def test_scenario_c_gemini_quota_exhausted_429(monkeypatch):
+    """
+    Scenario C.2: Gemini API returns HTTP 429 Resource Exhausted.
+    Verifies that the application does not crash or raise 500, but immediately falls back.
+    """
+    import asyncio
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("GEMINI_API_KEY", "valid-fake-gemini-key")
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 429
+    mock_resp.text = "Quota exceeded for quota metric 'GenerateContent Requests'"
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = mock_resp
+        provider = get_inspection_provider()
+
+        req = InspectionSummaryRequest(
+            product_name="Quota Test Product",
+            verdict="PASS",
+            extracted_declarations={
+                "mrp": "₹99.00 (Incl. of all taxes)",
+                "net_quantity": "500 g",
+                "manufacturer": "Quota Test Foods Pvt Ltd",
+                "address": "Bangalore 560001",
+                "date_declaration": "10/2026",
+                "consumer_care": "care@quotatest.in",
+            },
+        )
+        res = asyncio.run(provider.generate_summary(req))
+
+        assert res.is_ai_generated is False
+        assert res.provider_used == "mock-statutory-engine (fallback)"
+        assert "PASS" in res.overall_summary
+
+
+def test_scenario_c_gemini_invalid_credentials_403(monkeypatch):
+    """
+    Scenario C.3: Invalid or revoked API key returns HTTP 403.
+    Verifies that secrets are not leaked and fallback occurs seamlessly.
+    """
+    import asyncio
+    from unittest.mock import MagicMock
+
+    secret_key = "secret-fake-key-999888"
+    monkeypatch.setenv("GEMINI_API_KEY", secret_key)
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 403
+    mock_resp.text = "API key not valid. Please pass a valid API key."
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = mock_resp
+        provider = get_inspection_provider()
+
+        req = InspectionSummaryRequest(
+            product_name="Invalid Key Product",
+            verdict="REVIEW",
+            flagged_rules=["LM-PCR-2011-R6-1-C"],
+        )
+        res = asyncio.run(provider.generate_summary(req))
+
+        assert res.is_ai_generated is False
+        assert res.provider_used == "mock-statutory-engine (fallback)"
+        # Confirm secret key is NEVER exposed in the response
+        res_str = json.dumps(res.model_dump())
+        assert secret_key not in res_str
+
+
+def test_scenario_c_gemini_malformed_json_response(monkeypatch):
+    """
+    Scenario C.4: Gemini returns non-JSON or corrupted text response.
+    Verifies json.loads parsing error triggers clean fallback.
+    """
+    import asyncio
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("GEMINI_API_KEY", "valid-fake-gemini-key")
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "candidates": [
+            {"content": {"parts": [{"text": "INVALID NON-JSON PLAIN TEXT {{{"}]}}
+        ]
+    }
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = mock_resp
+        provider = get_inspection_provider()
+
+        req = InspectionSummaryRequest(
+            product_name="Malformed JSON Product",
+            verdict="REVIEW",
+        )
+        res = asyncio.run(provider.generate_summary(req))
+
+        assert res.is_ai_generated is False
+        assert res.provider_used == "mock-statutory-engine (fallback)"
+
+
+def test_inspection_summary_for_persisted_report_id():
+    """
+    Verifies that GET /api/inspection/summary/{report_id} retrieves an existing
+    saved report from the database and generates a corroborated summary.
+    """
+    # 1. Create a report
+    report_payload = {
+        "verdict": "REVIEW",
+        "productName": "Saved DB Almond Milk",
+        "mrp": "₹120.00",
+        "netQuantity": "1 Litre",
+        "manufacturer": "Nuts & Dairy Ltd",
+        "dateDeclaration": "09/2026",
+        "consumerCare": None,  # Missing consumer care
+        "issues": [
+            {
+                "ruleId": "LM-PCR-2011-R6-1-E",
+                "field": "consumerCare",
+                "title": "Consumer Care Details",
+                "severity": "high",
+                "explanation": "Consumer care telephone helpline or email contact not detected.",
+            }
+        ],
+        "rawOcr": "Almond Milk 1 Litre MRP Rs 120 Mfd 09/2026",
+    }
+    create_resp = client.post("/api/report", json=report_payload)
+    assert create_resp.status_code == 201
+    report_id = create_resp.json()["id"]
+
+    # 2. Retrieve summary via report_id
+    summary_resp = client.get(f"/api/inspection/summary/{report_id}")
+    assert summary_resp.status_code == 200
+    summary_data = summary_resp.json()
+
+    assert "Saved DB Almond Milk" in summary_data["overall_summary"]
+    assert "REVIEW" in summary_data["overall_summary"]
+    assert "consumer_care" in summary_data["declarations_requiring_attention"]
+
+
+def test_inspection_summary_for_missing_report_id_returns_404():
+    """
+    Verifies that querying a non-existent report_id yields HTTP 404 Not Found.
+    """
+    resp = client.get("/api/inspection/summary/non-existent-report-id-12345")
+    assert resp.status_code == 404
+    assert "not found" in resp.json()["detail"].lower()
+
