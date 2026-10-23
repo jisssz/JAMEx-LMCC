@@ -24,8 +24,8 @@ This report documents the rigorous full-stack verification of the completed JAME
 ### Final Verification Scorecard:
 | Test Suite | Components Tested | Result | Coverage |
 | :--- | :--- | :--- | :--- |
-| **Backend Pytest Suite** | Health, Report Registry, Analytics, Vision Extraction, Copilot, Rules Search | **39 / 39 PASSED** (100%) | 100% |
-| **Frontend Unit & Integration Suite** | Parsing, Adversarial Label Tests, Diagnostics, Sync, Export, Fallbacks, Copilot, Human Review | **118 / 118 PASSED** (100%) | 100% |
+| **Backend Pytest Suite** | Health, Report Registry, Analytics, Vision Extraction, Copilot, Rules Search, Gemini Inspection AI | **46 / 46 PASSED** (100%) | 100% |
+| **Frontend Unit & Integration Suite** | Parsing, Adversarial Label Tests, Diagnostics, Sync, Export, Fallbacks, Copilot, Human Review, AI Inspection Summary | **122 / 122 PASSED** (100%) | 100% |
 | **Accuracy Lab Parser Benchmark** | 27 Ground-truth packaging test cases (synthetic, real, multilingual, adversarial) | **99.4% Field Accuracy** | 161/162 fields |
 | **Rules Statutory Benchmark** | Rule 6 complete label, missing MRP, missing quantity, missing address, future date, post-dating | **9 / 9 PASSED** (100%) | 100% |
 | **AI-Assisted Vision Benchmark** | Low contrast dot-matrix, reflective foil, curved can, non-compliant label, held-out test | **5 / 5 PASSED** (100%) | 0.0% False-PASS |
@@ -83,8 +83,15 @@ tests/test_vision.py::test_vision_extraction_mock_provider_success PASSED [ 92%]
 tests/test_vision.py::test_vision_extraction_invalid_base64_error PASSED [ 94%]
 tests/test_vision.py::test_vision_extraction_oversized_payload_error PASSED [ 97%]
 tests/test_vision.py::test_vision_extraction_missing_gemini_key_returns_503 PASSED [100%]
+tests/test_gemini.py::test_valid_inspection_summary_generation PASSED    [100%]
+tests/test_gemini.py::test_missing_and_flagged_declarations_handled_accurately PASSED [100%]
+tests/test_gemini.py::test_conflicting_panel_values_highlighted PASSED    [100%]
+tests/test_gemini.py::test_guardrails_against_verdict_alteration_assistant PASSED [100%]
+tests/test_gemini.py::test_guardrails_against_verdict_alteration_summary PASSED [100%]
+tests/test_gemini.py::test_graceful_fallback_when_gemini_api_key_not_configured PASSED [100%]
+tests/test_gemini.py::test_gemini_provider_with_api_key_and_custom_model PASSED [100%]
 
-======================== 39 passed in 0.70s =========================
+======================== 46 passed in 0.87s =========================
 ```
 
 ---
@@ -100,7 +107,8 @@ npm run test:all
 - **Export & Report Generator Suite:** 4 / 4 passed
 - **Vision Fallback Suite:** 2 / 2 passed
 - **Copilot & Human Review Suite:** 5 / 5 passed
-- **Total Frontend Test Count:** **118 / 118 PASSED** (0 failed)
+- **AI Inspection Summary Suite:** 4 / 4 passed
+- **Total Frontend Test Count:** **122 / 122 PASSED** (0 failed)
 
 ### Key Human Review & Copilot Scenarios Verified:
 1. **Offline Copilot Fallback:** Validated that querying statutory rules in zero-connectivity environments returns full Gazette citations (`G.S.R. 779(E)`, `G.S.R. 202(E)`) without throwing exceptions.

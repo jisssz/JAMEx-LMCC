@@ -135,11 +135,22 @@ from app.schemas.copilot import (
     LegalRuleItem,
 )
 
+from app.routers.inspection import (
+    router as inspection_router,
+    create_inspection_summary,
+    inspection_assistant,
+)
+from app.schemas.inspection import (
+    InspectionSummaryResponse,
+    InspectionAssistantResponse,
+)
+
 # Register API Routers (under /api prefix)
 app.include_router(report_router)
 app.include_router(analytics_router)
 app.include_router(vision_router)
 app.include_router(copilot_router)
+app.include_router(inspection_router)
 
 # Direct aliases without /api prefix to support environments where prefix is stripped
 app.add_api_route("/health", health_check, methods=["GET"], tags=["health"])
@@ -150,6 +161,8 @@ app.add_api_route("/extract/vision", extract_package_labels, methods=["POST"], r
 app.add_api_route("/copilot/chat", copilot_chat, methods=["POST"], response_model=CopilotResponse, tags=["copilot"])
 app.add_api_route("/rules/search", search_statutory_rules, methods=["GET"], response_model=LegalRuleSearchResponse, tags=["copilot"])
 app.add_api_route("/rules/{rule_id}", get_statutory_rule, methods=["GET"], response_model=LegalRuleItem, tags=["copilot"])
+app.add_api_route("/inspection/summary", create_inspection_summary, methods=["POST"], response_model=InspectionSummaryResponse, tags=["inspection"])
+app.add_api_route("/inspection/assistant", inspection_assistant, methods=["POST"], response_model=InspectionAssistantResponse, tags=["inspection"])
 
 app.add_api_route("/analytics/summary", get_analytics_summary, methods=["GET"], response_model=AnalyticsSummary, tags=["analytics"])
 app.add_api_route("/analytics/issues", get_issues_breakdown, methods=["GET"], response_model=IssuesBreakdown, tags=["analytics"])

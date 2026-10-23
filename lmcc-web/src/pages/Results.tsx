@@ -40,6 +40,7 @@ import { Button } from '../components/ui/button';
 import { BackgroundBeams } from '../components/ui/background-beams';
 import { ComplianceCopilotSheet } from '../components/copilot/ComplianceCopilotSheet';
 import { HumanReviewModal } from '../components/review/HumanReviewModal';
+import { InspectionSummaryCard } from '../components/ai/InspectionSummaryCard';
 
 export const Results: React.FC = () => {
   const location = useLocation();
@@ -287,6 +288,14 @@ export const Results: React.FC = () => {
 
         {/* Main Verdict Banner */}
         <VerdictCard verdict={currentVerdict} />
+
+        {/* Feature 1: AI Inspection Summary */}
+        <InspectionSummaryCard
+          verdict={currentVerdict}
+          extractedLabel={currentLabel}
+          multiPanelResult={multiPanelResult}
+          isMultiPanel={isMultiPanel}
+        />
 
         {/* Multi-Panel Conflict Alert (if any) */}
         {multiPanelResult?.hasConflict && (

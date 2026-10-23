@@ -68,23 +68,25 @@ cd lmcc-backend && PYTHONPATH=. pytest tests/ -v
 ### 2. Frontend Test Suite
 ```
 cd lmcc-web && npm run test:all
-============================= 118 passed in 0.65s =============================
+============================= 122 passed in 0.70s =============================
 ```
 - **Compliance Rules & Parser Suite:** 107/107 passed (all SIH statutory checks, multi-panel aggregation, adversarial inputs).
 - **Export & Report Generation Suite:** 4/4 passed (formula injection prevention, Gazette citations, Unicode multilingual support, PDF generation).
 - **Vision Fallback Quality Gate Suite:** 2/2 passed (trigger heuristics, rules engine integration).
 - **Copilot & Human Review Suite:** 5/5 passed (offline fallback, guardrail enforcement, candidate editing, re-screening).
+- **AI Inspection Summary Suite:** 4/4 passed (PASS/REVIEW generation, missing declarations, offline resilience, guardrail enforcement).
 
 ### 2. Full Backend Pytest Suite
 ```
 cd lmcc-backend && PYTHONPATH=. .venv/bin/pytest tests/ -v
-============================= 39 passed in 0.70s =============================
+============================= 46 passed in 0.87s =============================
 ```
 - **Report & Storage Suite:** 12/12 passed (deduplication, pagination, error resilience, SQLite persistence).
 - **Analytics & Authority Surveillance Suite:** 10/10 passed (summary aggregation, trends, privacy zero-PII audit).
 - **Database Connection & Rollback Suite:** 3/3 passed (PostgreSQL URI normalization, pool recycling).
 - **AI Vision Extraction Suite:** 4/4 passed (mock extraction, payload limits, graceful 503).
 - **Grounded Copilot & Statutory Search Suite:** 10/10 passed (statutory citations, guardrails, rules search, direct routes).
+- **Gemini Inspection Summary & Assistant Suite:** 7/7 passed (multi-panel discrepancies, guardrails against verdict alteration, model selection, offline fallback).
 
 ### 3. TypeScript Type-Checking & Vite Production Build
 ```
