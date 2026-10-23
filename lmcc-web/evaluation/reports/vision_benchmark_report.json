@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-23T19:46:39.451Z",
+  "timestamp": "2026-10-23T20:58:44.906Z",
   "totalCases": 5,
   "fieldAccuracyPercent": 100,
   "fallbackTriggerAccuracyPercent": 100,
@@ -30,7 +30,7 @@
       "fallbackTriggered": true,
       "verdictObserved": "PASS",
       "verdictExpected": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 1,
       "passedSafety": true
     },
     {
@@ -39,7 +39,7 @@
       "fallbackTriggered": true,
       "verdictObserved": "REVIEW",
       "verdictExpected": "REVIEW",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "passedSafety": true
     },
     {
@@ -48,7 +48,7 @@
       "fallbackTriggered": false,
       "verdictObserved": "PASS",
       "verdictExpected": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "passedSafety": true
     }
   ]

@@ -61,4 +61,10 @@ export interface ExtractedLabel {
   // Detailed internal evidence tracking & diagnostics
   fieldEvidenceRecords?: Record<string, FieldEvidenceRecord>;
   declarationCoverage?: DeclarationCoverageDiagnostic;
+
+  // Human Review & Verification tracking
+  isHumanVerified?: boolean;
+  humanVerifiedFields?: string[];
+  reviewerNotes?: string;
+  reviewerName?: string;
 }

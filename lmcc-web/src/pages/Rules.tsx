@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ZenoxNav from '../components/ui/ZenoxNav';
 import { BackgroundBeams } from '../components/ui/background-beams';
 import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Scale, CheckCircle2, Sparkles, ArrowRight } from 'lucide-react';
+import { Scale, CheckCircle2, Sparkles, ArrowRight, Search, Bot } from 'lucide-react';
+import { ComplianceCopilotSheet } from '../components/copilot/ComplianceCopilotSheet';
 
 export const Rules: React.FC = () => {
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
 
   const rulesData = [
     {
@@ -78,6 +81,18 @@ export const Rules: React.FC = () => {
     },
   ];
 
+  const filteredRules = rulesData.filter((r) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      r.title.toLowerCase().includes(q) ||
+      r.rule.toLowerCase().includes(q) ||
+      r.citation.toLowerCase().includes(q) ||
+      r.summary.toLowerCase().includes(q) ||
+      r.criteria.some((c) => c.toLowerCase().includes(q))
+    );
+  });
+
   return (
     <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-black relative overflow-hidden">
       <BackgroundBeams />
@@ -99,9 +114,36 @@ export const Rules: React.FC = () => {
           </p>
         </div>
 
+        {/* Interactive Statutory Search & Copilot Trigger */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search rules, G.S.R. notifications (e.g. 779(E)), or clauses..."
+              className="w-full pl-9 pr-3.5 py-2 text-xs bg-black/40 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-teal-500 transition-colors"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsCopilotOpen(true)}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 text-xs font-medium border border-teal-500/30 transition-colors cursor-pointer shrink-0"
+          >
+            <Bot className="w-4 h-4 text-teal-400" />
+            <span>Consult AI Copilot</span>
+          </button>
+        </div>
+
         {/* Gazette Criteria List */}
         <div className="space-y-6">
-          {rulesData.map((rule) => (
+          {filteredRules.length === 0 ? (
+            <div className="p-8 text-center rounded-2xl bg-white/[0.02] border border-white/10 text-xs text-slate-400">
+              No statutory rules matched "{searchQuery}". Try searching "MRP", "quantity", or "G.S.R. 779(E)".
+            </div>
+          ) : (
+            filteredRules.map((rule) => (
             <Card key={rule.num} className="p-6 sm:p-8 space-y-5 border-white/[0.08] hover:border-emerald-500/30 transition-all">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -132,7 +174,7 @@ export const Rules: React.FC = () => {
                 </ul>
               </div>
             </Card>
-          ))}
+          )))}
         </div>
 
         {/* Bottom Call to Action */}
@@ -162,6 +204,12 @@ export const Rules: React.FC = () => {
           <span>SIH 2026 · Team JAMH X4</span>
         </div>
       </footer>
+
+      {/* Grounded Copilot Drawer */}
+      <ComplianceCopilotSheet
+        isOpen={isCopilotOpen}
+        onClose={() => setIsCopilotOpen(false)}
+      />
     </div>
   );
 };

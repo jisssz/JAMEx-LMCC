@@ -19,6 +19,7 @@ import {
   Clock,
   Camera,
   Download,
+  Bot,
 } from 'lucide-react';
 import { getReport, ReportRead } from '../services/api';
 import { getLocalReport } from '../services/storage/localReports';
@@ -26,6 +27,7 @@ import { getAuthoritySubmissionStatus } from '../services/authority/authoritySub
 import { registerSyncListener } from '../services/sync/reportSync';
 import SectionLabel from '../components/ui/SectionLabel';
 import { exportInspectionReportPdf, exportInspectionReportCsv } from '../services/export/reportExporter';
+import { ComplianceCopilotSheet } from '../components/copilot/ComplianceCopilotSheet';
 
 export const ReportDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +44,7 @@ export const ReportDetail: React.FC = () => {
   const [copiedId, setCopiedId] = useState(false);
   const [showRawOcr, setShowRawOcr] = useState(false);
   const [copiedOcr, setCopiedOcr] = useState(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
 
   const authorityStatus = getAuthoritySubmissionStatus(id || '');
 
@@ -350,8 +353,18 @@ export const ReportDetail: React.FC = () => {
                 </button>
               </div>
 
-              {/* PDF & CSV Export Toolbar */}
-              <div className="flex items-center gap-2 pt-1">
+              {/* PDF & CSV Export & Copilot Toolbar */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsCopilotOpen(true)}
+                  className="flex-1 min-w-[120px] py-2 px-3 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-xs font-medium text-teal-300 flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  title="Ask AI Copilot about this inspection report"
+                >
+                  <Bot className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Ask AI Copilot</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -370,7 +383,7 @@ export const ReportDetail: React.FC = () => {
                       userRemarks: report.userRemarks,
                     });
                   }}
-                  className="flex-1 py-2 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs font-medium text-slate-200 flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className="flex-1 min-w-[120px] py-2 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs font-medium text-slate-200 flex items-center justify-center gap-1.5 transition cursor-pointer"
                   title="Download vector PDF inspection report with Gazette citations"
                 >
                   <FileText className="w-3.5 h-3.5 text-[#2ee6a6]" />
@@ -395,7 +408,7 @@ export const ReportDetail: React.FC = () => {
                       userRemarks: report.userRemarks,
                     });
                   }}
-                  className="flex-1 py-2 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs font-medium text-slate-200 flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className="flex-1 min-w-[120px] py-2 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs font-medium text-slate-200 flex items-center justify-center gap-1.5 transition cursor-pointer"
                   title="Download sanitized CSV inspection report"
                 >
                   <Download className="w-3.5 h-3.5 text-slate-300" />
@@ -708,6 +721,25 @@ export const ReportDetail: React.FC = () => {
           </>
         )}
       </main>
+
+      {/* Compliance Copilot Slide-Over Sheet */}
+      {report && (
+        <ComplianceCopilotSheet
+          isOpen={isCopilotOpen}
+          onClose={() => setIsCopilotOpen(false)}
+          verdict={report.verdict}
+          extractedFields={{
+            productName: report.productName,
+            mrp: report.mrp,
+            netQuantity: report.netQuantity,
+            manufacturer: report.manufacturer,
+            packingDate: report.dateDeclaration,
+            consumerCare: report.consumerCare,
+          }}
+          flaggedRules={report.issues?.map((i) => i.ruleId) || []}
+          commodity={report.productName}
+        />
+      )}
     </div>
   );
 };

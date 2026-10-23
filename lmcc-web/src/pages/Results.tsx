@@ -23,6 +23,10 @@ import {
   Download,
   FileText,
   ArrowRight,
+  Bot,
+  UserCheck,
+  Sparkles,
+  ShieldCheck,
 } from 'lucide-react';
 import { ExtractedLabel } from '../models/ExtractedLabel';
 import { Verdict } from '../models/Verdict';
@@ -34,6 +38,8 @@ import { ViolationCard } from '../components/ViolationCard';
 import { exportInspectionReportPdf, exportInspectionReportCsv } from '../services/export/reportExporter';
 import { Button } from '../components/ui/button';
 import { BackgroundBeams } from '../components/ui/background-beams';
+import { ComplianceCopilotSheet } from '../components/copilot/ComplianceCopilotSheet';
+import { HumanReviewModal } from '../components/review/HumanReviewModal';
 
 export const Results: React.FC = () => {
   const location = useLocation();
@@ -88,6 +94,20 @@ export const Results: React.FC = () => {
   const [isImageExpanded, setIsImageExpanded] = useState(false);
   const [expandedField, setExpandedField] = useState<string | null>(null);
 
+  // Dynamic state for Human Review and Copilot workflows
+  const [currentLabel, setCurrentLabel] = useState<ExtractedLabel>(extractedLabel || ({} as ExtractedLabel));
+  const [currentVerdict, setCurrentVerdict] = useState<Verdict>(verdict || ({} as Verdict));
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [isHumanReviewOpen, setIsHumanReviewOpen] = useState(false);
+
+  useEffect(() => {
+    if (extractedLabel) setCurrentLabel(extractedLabel);
+  }, [extractedLabel]);
+
+  useEffect(() => {
+    if (verdict) setCurrentVerdict(verdict);
+  }, [verdict]);
+
   // Empty / Failure State Handling
   if (!extractedLabel || !verdict) {
     return (
@@ -114,7 +134,7 @@ export const Results: React.FC = () => {
   }
 
   useEffect(() => {
-    if (verdict?.overallStatus === 'PASS') {
+    if (currentVerdict?.overallStatus === 'PASS') {
       try {
         confetti({
           particleCount: 60,
@@ -126,10 +146,10 @@ export const Results: React.FC = () => {
         // Safe fallback if canvas not available
       }
     }
-  }, [verdict?.overallStatus]);
+  }, [currentVerdict?.overallStatus]);
 
   const handleCopyRaw = () => {
-    navigator.clipboard.writeText(extractedLabel.rawText);
+    navigator.clipboard.writeText(currentLabel.rawText || extractedLabel?.rawText || '');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -143,38 +163,38 @@ export const Results: React.FC = () => {
   }[] = [
     {
       label: 'Maximum Retail Price (MRP)',
-      value: extractedLabel.mrp,
+      value: currentLabel.mrp,
       key: 'mrp',
       icon: <DollarSign className="w-4 h-4 text-emerald-400" />,
     },
     {
       label: 'Net Quantity',
-      value: extractedLabel.netQuantity,
+      value: currentLabel.netQuantity,
       key: 'netQuantity',
       icon: <Scale className="w-4 h-4 text-sky-400" />,
     },
     {
       label: 'Manufacturer / Packer',
-      value: extractedLabel.manufacturer,
+      value: currentLabel.manufacturer,
       key: 'manufacturer',
       icon: <Building className="w-4 h-4 text-blue-400" />,
     },
     {
       label: 'Premises Address',
-      value: extractedLabel.address,
+      value: currentLabel.address,
       key: 'address',
       icon: <MapPin className="w-4 h-4 text-indigo-400" />,
     },
     {
       label: 'Date of Mfg / Packing',
-      value: extractedLabel.packingDate || extractedLabel.manufactureDate,
+      value: currentLabel.packingDate || currentLabel.manufactureDate,
       key: 'date',
       icon: <Calendar className="w-4 h-4 text-amber-400" />,
-      isAmbiguous: extractedLabel.isDateAmbiguous || extractedLabel.isFutureDate,
+      isAmbiguous: currentLabel.isDateAmbiguous || currentLabel.isFutureDate,
     },
     {
       label: 'Consumer Care Cell',
-      value: extractedLabel.consumerCare,
+      value: currentLabel.consumerCare,
       key: 'consumerCare',
       icon: <Phone className="w-4 h-4 text-purple-400" />,
     },
@@ -215,8 +235,58 @@ export const Results: React.FC = () => {
 
       {/* Main Document Body */}
       <main className="relative z-10 max-w-4xl w-full mx-auto px-5 sm:px-8 py-8 space-y-8">
+        {/* Human Verified Forensic Banner (if updated) */}
+        {currentLabel.isHumanVerified && (
+          <div className="p-4 bg-teal-950/40 border border-teal-500/30 rounded-2xl flex items-center justify-between text-xs text-teal-300">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-teal-400 shrink-0" />
+              <div>
+                <span className="font-semibold text-white block">
+                  Human Verified & Forensic Audit Applied
+                </span>
+                <span className="text-teal-200/70">
+                  {currentLabel.reviewerName ? `Reviewed by ${currentLabel.reviewerName}. ` : ''}
+                  {currentLabel.reviewerNotes || 'Declarations manually verified against physical package.'}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsHumanReviewOpen(true)}
+              className="px-3 py-1 bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 rounded-lg text-xs font-medium transition cursor-pointer"
+            >
+              Re-edit
+            </button>
+          </div>
+        )}
+
+        {/* AI Copilot & Review Workflow Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10">
+          <div className="flex items-center gap-2 text-xs text-white/70">
+            <Sparkles className="w-4 h-4 text-teal-400" />
+            <span>Inspection Intelligence & Human Workflow:</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsHumanReviewOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-medium border border-white/10 transition-colors cursor-pointer"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-teal-400" />
+              <span>Review & Edit Declarations</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsCopilotOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 text-xs font-medium border border-teal-500/30 transition-colors cursor-pointer"
+            >
+              <Bot className="w-3.5 h-3.5 text-teal-400" />
+              <span>Ask AI Copilot</span>
+            </button>
+          </div>
+        </div>
+
         {/* Main Verdict Banner */}
-        <VerdictCard verdict={verdict} />
+        <VerdictCard verdict={currentVerdict} />
 
         {/* Multi-Panel Conflict Alert (if any) */}
         {multiPanelResult?.hasConflict && (
@@ -361,9 +431,9 @@ export const Results: React.FC = () => {
               const detected = Boolean(field.value && field.value.trim().length > 0);
               const isAmbiguous = Boolean(field.isAmbiguous);
               const origin = multiPanelResult?.fieldOrigins?.[field.key];
-              const fieldStatus = extractedLabel.declarationCoverage?.fieldStatuses?.[field.key];
-              const evidenceRecord = extractedLabel.fieldEvidenceRecords?.[field.key];
-              const check = verdict.checks.find((c) => c.field === field.key || (field.key === 'date' && c.field === 'packingDate'));
+              const fieldStatus = currentLabel.declarationCoverage?.fieldStatuses?.[field.key];
+              const evidenceRecord = currentLabel.fieldEvidenceRecords?.[field.key];
+              const check = currentVerdict.checks.find((c) => c.field === field.key || (field.key === 'date' && c.field === 'packingDate'));
               const isExpanded = expandedField === field.key;
 
               return (
@@ -545,13 +615,13 @@ export const Results: React.FC = () => {
         )}
 
         {/* Flagged Review Items (if any) */}
-        {verdict.potentialViolations.length > 0 && (
+        {currentVerdict.potentialViolations.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-white tracking-tight">
-              Manual Verification Recommended ({verdict.potentialViolations.length} field{verdict.potentialViolations.length > 1 ? 's' : ''} require review)
+              Manual Verification Recommended ({currentVerdict.potentialViolations.length} field{currentVerdict.potentialViolations.length > 1 ? 's' : ''} require review)
             </h3>
             <div className="space-y-3">
-              {verdict.potentialViolations.map((violation) => (
+              {currentVerdict.potentialViolations.map((violation) => (
                 <ViolationCard key={violation.ruleId} violation={violation} />
               ))}
             </div>
@@ -565,7 +635,7 @@ export const Results: React.FC = () => {
             onClick={() => setShowRawOcr(!showRawOcr)}
             className="w-full px-5 py-3.5 flex items-center justify-between text-left text-xs text-slate-400 hover:text-white transition cursor-pointer"
           >
-            <span>Raw character recognition stream ({extractedLabel.rawText.length} characters)</span>
+            <span>Raw character recognition stream ({currentLabel.rawText?.length || extractedLabel.rawText.length} characters)</span>
             {showRawOcr ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
           {showRawOcr && (
@@ -581,7 +651,7 @@ export const Results: React.FC = () => {
                 </button>
               </div>
               <pre className="text-xs font-mono text-slate-300 whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed">
-                {extractedLabel.rawText || '(No readable characters detected)'}
+                {currentLabel.rawText || extractedLabel.rawText || '(No readable characters detected)'}
               </pre>
             </div>
           )}
@@ -596,16 +666,16 @@ export const Results: React.FC = () => {
             onClick={() =>
               navigate('/report', {
                 state: {
-                  extractedLabel,
-                  verdict,
+                  extractedLabel: currentLabel,
+                  verdict: currentVerdict,
                   imageBlob,
-                  isPassConcern: verdict.overallStatus === 'PASS',
+                  isPassConcern: currentVerdict.overallStatus === 'PASS',
                 },
               })
             }
             className="flex-1 rounded-xl text-xs font-semibold shadow-lg text-center gap-2"
           >
-            <span>{verdict.overallStatus === 'PASS' ? 'File Voluntary Packaging Observation' : 'Report Potential Declaration Issue'}</span>
+            <span>{currentVerdict.overallStatus === 'PASS' ? 'File Voluntary Packaging Observation' : 'Report Potential Declaration Issue'}</span>
             <ArrowRight className="w-4 h-4" />
           </Button>
 
@@ -616,9 +686,9 @@ export const Results: React.FC = () => {
               exportInspectionReportPdf({
                 reportId: `INSP-${Date.now().toString(36).toUpperCase()}`,
                 timestamp: new Date().toISOString(),
-                verdict,
-                extractedLabel,
-                productName: extractedLabel.productName || 'Scanned Package',
+                verdict: currentVerdict,
+                extractedLabel: currentLabel,
+                productName: currentLabel.productName || 'Scanned Package',
               });
             }}
             className="rounded-xl gap-2 text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
@@ -635,9 +705,9 @@ export const Results: React.FC = () => {
               exportInspectionReportCsv({
                 reportId: `INSP-${Date.now().toString(36).toUpperCase()}`,
                 timestamp: new Date().toISOString(),
-                verdict,
-                extractedLabel,
-                productName: extractedLabel.productName || 'Scanned Package',
+                verdict: currentVerdict,
+                extractedLabel: currentLabel,
+                productName: currentLabel.productName || 'Scanned Package',
               });
             }}
             className="rounded-xl gap-2 text-xs"
@@ -657,6 +727,35 @@ export const Results: React.FC = () => {
           </Button>
         </div>
       </main>
+
+      {/* Compliance Copilot Slide-Over Sheet */}
+      <ComplianceCopilotSheet
+        isOpen={isCopilotOpen}
+        onClose={() => setIsCopilotOpen(false)}
+        verdict={currentVerdict.overallStatus}
+        extractedFields={{
+          productName: currentLabel.productName,
+          mrp: currentLabel.mrp,
+          netQuantity: currentLabel.netQuantity,
+          manufacturer: currentLabel.manufacturer,
+          address: currentLabel.address,
+          packingDate: currentLabel.packingDate || currentLabel.manufactureDate,
+          consumerCare: currentLabel.consumerCare,
+        }}
+        flaggedRules={currentVerdict.potentialViolations?.map((v) => v.ruleId) || []}
+        commodity={currentLabel.productName}
+      />
+
+      {/* Human Review & Field Correction Modal */}
+      <HumanReviewModal
+        isOpen={isHumanReviewOpen}
+        onClose={() => setIsHumanReviewOpen(false)}
+        initialLabel={currentLabel}
+        onApplyReview={(updatedLabel, newVerdict) => {
+          setCurrentLabel(updatedLabel);
+          setCurrentVerdict(newVerdict);
+        }}
+      />
 
       {/* Enlarged Photo Modal */}
       {isImageExpanded && (

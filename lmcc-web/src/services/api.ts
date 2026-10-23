@@ -438,5 +438,165 @@ export async function requestVisionExtraction(
   return response.json();
 }
 
+// ---------------------------------------------------------------------------
+// Phase D: Grounded AI Compliance Copilot & Statutory Search API
+// ---------------------------------------------------------------------------
+
+export interface GroundedCitation {
+  rule_id: string;
+  clause: string;
+  title: string;
+  gazette_reference: string;
+  summary: string;
+}
+
+export interface CopilotQueryRequest {
+  query: string;
+  verdict?: string;
+  extracted_fields?: Record<string, any>;
+  flagged_rules?: string[];
+  commodity?: string;
+}
+
+export interface CopilotResponse {
+  answer: string;
+  citations: GroundedCitation[];
+  suggested_followups: string[];
+  is_offline_fallback: boolean;
+  provider_used: string;
+  legal_disclaimer: string;
+}
+
+export interface LegalRuleSearchItem {
+  id: string;
+  field: string;
+  title: string;
+  description: string;
+  severity: string;
+  source: string;
+  gazetteReference: string;
+  whatCanBeDetected: string;
+  legalLimitations: string;
+  enabled: boolean;
+}
+
+export interface LegalRuleSearchResponse {
+  total: number;
+  rules: LegalRuleSearchItem[];
+}
+
+export async function askComplianceCopilot(
+  payload: CopilotQueryRequest
+): Promise<CopilotResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/copilot/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Copilot request failed (${response.status})`);
+    }
+
+    return await response.json();
+  } catch (err: any) {
+    // Client-side offline fallback if network or server is unreachable
+    console.warn('[Copilot API] Network unavailable, invoking client-side offline fallback:', err?.message);
+    return getClientOfflineCopilotResponse(payload);
+  }
+}
+
+export async function searchLegalRules(params?: {
+  q?: string;
+  field?: string;
+  severity?: string;
+}): Promise<LegalRuleSearchResponse> {
+  const queryParts: string[] = [];
+  if (params?.q) queryParts.push(`q=${encodeURIComponent(params.q)}`);
+  if (params?.field) queryParts.push(`field=${encodeURIComponent(params.field)}`);
+  if (params?.severity) queryParts.push(`severity=${encodeURIComponent(params.severity)}`);
+  const queryString = queryParts.length ? `?${queryParts.join('&')}` : '';
+
+  const response = await fetch(`${API_BASE_URL}/api/rules/search${queryString}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Rules search failed (${response.status})`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Client-Side Grounded Offline Copilot Fallback.
+ * Ensures that inspectors in remote or zero-connectivity environments
+ * still receive grounded statutory explanations and Gazette citations.
+ */
+function getClientOfflineCopilotResponse(payload: CopilotQueryRequest): CopilotResponse {
+  const q = payload.query.toLowerCase();
+  
+  if (q.includes('override') || q.includes('pass') || q.includes('change verdict')) {
+    return {
+      answer:
+        'Under Section 36 of the Legal Metrology Act, 2009, compliance verdicts are strictly deterministic code. The Copilot cannot manually override or alter an inspection verdict. If visual OCR misreadings occurred, use Human Review to correct declarations.',
+      citations: [
+        {
+          rule_id: 'LM-ACT-2009-S36',
+          clause: 'Section 36, Legal Metrology Act, 2009',
+          title: 'Penalty for Non-Standard Packages',
+          gazette_reference: 'Act No. 1 of 2010',
+          summary: 'Mandates statutory penalties for manufacturing or distributing non-compliant packages.',
+        },
+      ],
+      suggested_followups: [
+        'How do I correct an OCR error via Human Review?',
+        'What physical checks should the inspector conduct?',
+      ],
+      is_offline_fallback: true,
+      provider_used: 'client-offline-grounded-engine',
+      legal_disclaimer:
+        'Client Offline Copilot. Statutory screening guidance based on PCR 2011.',
+    };
+  }
+
+  return {
+    answer:
+      `Statutory Screening Guidance: For query "${payload.query}", mandatory declarations under Rule 6(1) of the Legal Metrology (Packaged Commodities) Rules, 2011 require clear indication of MRP inclusive of all taxes, net quantity in standard metric units, manufacturer/packer details, month/year of manufacture, and consumer care redressal cell details (G.S.R. 779(E) & G.S.R. 629(E)).`,
+    citations: [
+      {
+        rule_id: 'LM-PCR-2011-R6-1-DA',
+        clause: 'Rule 6(1)(da), PCR 2011',
+        title: 'Maximum Retail Price (MRP)',
+        gazette_reference: 'G.S.R. 779(E) dated 02-11-2021',
+        summary: 'Retail sale price inclusive of all taxes.',
+      },
+      {
+        rule_id: 'LM-PCR-2011-R6-1-C',
+        clause: 'Rule 6(1)(c), PCR 2011',
+        title: 'Net Quantity Declaration',
+        gazette_reference: 'G.S.R. 202(E) read with Second Schedule',
+        summary: 'Standard metric units of weight or measure.',
+      },
+    ],
+    suggested_followups: [
+      'Why was MRP flagged on this package?',
+      'What physical verification is required for net quantity?',
+      'How to resolve conflicting declarations across panels?',
+    ],
+    is_offline_fallback: true,
+    provider_used: 'client-offline-grounded-engine',
+    legal_disclaimer:
+      'Client Offline Copilot. Statutory screening guidance based on PCR 2011.',
+  };
+}
+
+
 
 

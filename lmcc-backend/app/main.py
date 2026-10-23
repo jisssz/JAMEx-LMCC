@@ -123,11 +123,23 @@ from app.schemas.analytics import (
 )
 from app.routers.vision import router as vision_router, extract_package_labels
 from app.schemas.vision import VisionExtractionResponse
+from app.routers.copilot import (
+    router as copilot_router,
+    copilot_chat,
+    search_statutory_rules,
+    get_statutory_rule,
+)
+from app.schemas.copilot import (
+    CopilotResponse,
+    LegalRuleSearchResponse,
+    LegalRuleItem,
+)
 
 # Register API Routers (under /api prefix)
 app.include_router(report_router)
 app.include_router(analytics_router)
 app.include_router(vision_router)
+app.include_router(copilot_router)
 
 # Direct aliases without /api prefix to support environments where prefix is stripped
 app.add_api_route("/health", health_check, methods=["GET"], tags=["health"])
@@ -135,6 +147,9 @@ app.add_api_route("/report", submit_report, methods=["POST"], response_model=Rep
 app.add_api_route("/reports", list_reports, methods=["GET"], response_model=List[ReportRead], tags=["reports"])
 app.add_api_route("/reports/{report_id}", get_report, methods=["GET"], response_model=ReportRead, tags=["reports"])
 app.add_api_route("/extract/vision", extract_package_labels, methods=["POST"], response_model=VisionExtractionResponse, tags=["vision"])
+app.add_api_route("/copilot/chat", copilot_chat, methods=["POST"], response_model=CopilotResponse, tags=["copilot"])
+app.add_api_route("/rules/search", search_statutory_rules, methods=["GET"], response_model=LegalRuleSearchResponse, tags=["copilot"])
+app.add_api_route("/rules/{rule_id}", get_statutory_rule, methods=["GET"], response_model=LegalRuleItem, tags=["copilot"])
 
 app.add_api_route("/analytics/summary", get_analytics_summary, methods=["GET"], response_model=AnalyticsSummary, tags=["analytics"])
 app.add_api_route("/analytics/issues", get_issues_breakdown, methods=["GET"], response_model=IssuesBreakdown, tags=["analytics"])

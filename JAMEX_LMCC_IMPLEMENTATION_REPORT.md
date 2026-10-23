@@ -18,6 +18,8 @@ All three phases outlined in the project upgrade specification have been impleme
 | **Phase A** | **Backend Independence & Durable Database**<br>• Normalized PostgreSQL connection scheme handling (`postgres://` → `postgresql://`)<br>• Production-grade connection pooling (`pool_size=5, pool_pre_ping=True, pool_recycle=300`)<br>• Scalable relational database indexes (`ix_reports_created_at`, `ix_reports_verdict`)<br>• Transparent SQLite fallback for zero-config local development and serverless testing | **DONE** | **29 / 29 backend tests passing** |
 | **Phase B** | **PDF & CSV Inspection Reports + Authority Dashboard**<br>• RFC-4180 CSV export with Spreadsheet Formula Injection mitigation (`=`, `+`, `-`, `@`, `\t`, `\r`)<br>• Gazette legal citations embedded in export rows (Rules 6(1)(a), 6(1)(c), 6(1)(da), etc.)<br>• Full Multilingual Unicode text rendering (Hindi, Malayalam, Tamil)<br>• Vector multi-page inspection PDF generator with field status badges and issue breakdown<br>• Prominent Demonstration Dataset disclaimer banner (`isDemo`) on Authority Dashboard<br>• Live Database vs Demo toggle with empty-state guidance and CSV/PDF export actions | **DONE** | **4 / 4 export tests passing**<br>*(Embedded in 113-test frontend suite)* |
 | **Phase C** | **AI-Assisted Vision Label Extraction Fallback**<br>• Provider-independent backend endpoint `POST /api/extract/vision`<br>• Abstract `VisionExtractionProvider` interface with deterministic `MockVisionProvider` and `GeminiVisionProvider`<br>• Safety constraints: 8 MB base64 payload ceiling, error handling, 503 fallback if unconfigured<br>• Frontend heuristic quality gate (`shouldOfferVisionFallback`) triggered on POOR OCR, low confidence (<65%), or missing mandatory declarations<br>• Field reconciliation engine (`mergeVisionExtractionWithLabel`) parsing structured AI facts through deterministic `RulesEngine`<br>• Comprehensive 5-case benchmark runner (`aiVisionBenchmark.ts`) testing glare, curvature, dot-matrix, non-compliance, and held-out labels | **DONE** | **2 / 2 fallback integration tests passing**<br>**5 / 5 vision benchmark cases passing (100% accuracy, 0 false PASS)** |
+| **Phase D** | **Grounded AI Compliance Copilot & Statutory Search**<br>• Backend endpoint `POST /api/copilot/chat` & `GET /api/rules/search`<br>• Grounded dual-provider engine (Google Gemini 1.5 Flash + Local Zero-Cloud Statutory Engine)<br>• Cites official Gazette notifications: `G.S.R. 779(E)`, `G.S.R. 629(E)`, `G.S.R. 202(E)`<br>• Strict deterministic guardrails: refuses manual override attempts citing Section 36 of Legal Metrology Act, 2009<br>• Accessible slide-over drawer (`ComplianceCopilotSheet.tsx`) integrated in Results, ReportDetail, and Rules | **DONE** | **10 / 10 copilot pytest tests passing** |
+| **Phase E** | **Human Review & Field Correction Workflow**<br>• Forensic candidate editor modal (`HumanReviewModal.tsx`)<br>• Corrects OCR noise (e.g. ₹98 to ₹99, truncated postal PIN codes)<br>• Reconciles cross-panel conflicts with physical verification checkbox<br>• Instant deterministic re-screening via `RulesEngine.evaluate()`<br>• Forensic provenance tracking (`isHumanVerified: true`, `humanVerifiedFields`) | **DONE** | **5 / 5 copilot & review tests passing**<br>*(Total 118 frontend tests passing)* |
 
 ---
 
@@ -66,11 +68,23 @@ cd lmcc-backend && PYTHONPATH=. pytest tests/ -v
 ### 2. Frontend Test Suite
 ```
 cd lmcc-web && npm run test:all
-============================= 113 passed in 0.60s =============================
+============================= 118 passed in 0.65s =============================
 ```
 - **Compliance Rules & Parser Suite:** 107/107 passed (all SIH statutory checks, multi-panel aggregation, adversarial inputs).
 - **Export & Report Generation Suite:** 4/4 passed (formula injection prevention, Gazette citations, Unicode multilingual support, PDF generation).
 - **Vision Fallback Quality Gate Suite:** 2/2 passed (trigger heuristics, rules engine integration).
+- **Copilot & Human Review Suite:** 5/5 passed (offline fallback, guardrail enforcement, candidate editing, re-screening).
+
+### 2. Full Backend Pytest Suite
+```
+cd lmcc-backend && PYTHONPATH=. .venv/bin/pytest tests/ -v
+============================= 39 passed in 0.70s =============================
+```
+- **Report & Storage Suite:** 12/12 passed (deduplication, pagination, error resilience, SQLite persistence).
+- **Analytics & Authority Surveillance Suite:** 10/10 passed (summary aggregation, trends, privacy zero-PII audit).
+- **Database Connection & Rollback Suite:** 3/3 passed (PostgreSQL URI normalization, pool recycling).
+- **AI Vision Extraction Suite:** 4/4 passed (mock extraction, payload limits, graceful 503).
+- **Grounded Copilot & Statutory Search Suite:** 10/10 passed (statutory citations, guardrails, rules search, direct routes).
 
 ### 3. TypeScript Type-Checking & Vite Production Build
 ```
