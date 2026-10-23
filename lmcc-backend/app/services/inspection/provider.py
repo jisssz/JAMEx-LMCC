@@ -1,9 +1,12 @@
 import os
 import re
 import json
+import logging
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from app.schemas.inspection import (
     InspectionSummaryRequest,
@@ -466,11 +469,15 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
         primary_model = self.model
         url = self._get_url(primary_model)
         resp = await client.post(url, json=payload, headers=headers)
+        if resp.status_code != 200:
+            logger.warning("Gemini primary model %s returned status %d: %s", primary_model, resp.status_code, resp.text[:400])
         if resp.status_code == 404:
             # If primary model is 404 (e.g. deprecated / unavailable in region), cascade to 2.0-flash or 1.5-flash
             secondary_model = "gemini-2.0-flash" if primary_model != "gemini-2.0-flash" else "gemini-1.5-flash"
             sec_url = self._get_url(secondary_model)
             sec_resp = await client.post(sec_url, json=payload, headers=headers)
+            if sec_resp.status_code != 200:
+                logger.warning("Gemini secondary model %s returned status %d: %s", secondary_model, sec_resp.status_code, sec_resp.text[:400])
             if sec_resp.status_code == 200:
                 return sec_resp, secondary_model
         return resp, primary_model

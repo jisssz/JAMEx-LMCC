@@ -1,3 +1,5 @@
+import os
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.db import get_db
@@ -86,3 +88,71 @@ async def inspection_assistant(payload: InspectionAssistantRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Inspection assistant request failed: {str(e)}",
         )
+
+
+@router.get("/diagnostic")
+async def inspection_diagnostic():
+    """
+    Sanitized diagnostic endpoint to test Gemini API connectivity without exposing secret values.
+    """
+    gemini_key = (os.getenv("GEMINI_API_KEY") or "").strip()
+    configured_model = (os.getenv("GEMINI_MODEL") or "gemini-1.5-flash").strip()
+    if not gemini_key:
+        return {
+            "gemini_key_configured": False,
+            "configured_model": configured_model,
+            "status": "No GEMINI_API_KEY present in environment",
+        }
+
+    headers = {
+        "x-goog-api-key": gemini_key,
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        # Check available models
+        resp = await client.get(
+            "https://generativelanguage.googleapis.com/v1beta/models",
+            headers=headers,
+        )
+        models_data = []
+        err_msg = None
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+                models_data = [
+                    m.get("name")
+                    for m in data.get("models", [])
+                    if "generateContent" in m.get("supportedGenerationMethods", [])
+                ]
+            except Exception as e:
+                err_msg = f"Failed to parse models json: {str(e)}"
+        else:
+            err_msg = resp.text[:500]
+
+        # Also test a minimal 1-token generateContent request with configured model
+        gen_status = None
+        gen_err = None
+        test_url = f"https://generativelanguage.googleapis.com/v1beta/models/{configured_model}:generateContent"
+        try:
+            gen_resp = await client.post(
+                test_url,
+                headers=headers,
+                json={"contents": [{"parts": [{"text": "ping"}]}]},
+            )
+            gen_status = gen_resp.status_code
+            if gen_status != 200:
+                gen_err = gen_resp.text[:500]
+        except Exception as e:
+            gen_err = str(e)
+
+        return {
+            "gemini_key_configured": True,
+            "key_prefix": gemini_key[:4] + "..." if len(gemini_key) > 4 else "...",
+            "configured_model": configured_model,
+            "models_endpoint_status": resp.status_code,
+            "available_models_count": len(models_data),
+            "available_models_sample": models_data[:8],
+            "models_endpoint_error": err_msg,
+            "generate_content_test_status": gen_status,
+            "generate_content_error": gen_err,
+        }

@@ -1,8 +1,11 @@
 import os
 import re
 import json
+import logging
 from typing import List, Optional
 import httpx
+
+logger = logging.getLogger(__name__)
 from app.schemas.copilot import (
     CopilotQueryRequest,
     CopilotResponse,
@@ -299,7 +302,8 @@ async def process_copilot_query(request: CopilotQueryRequest) -> CopilotResponse
             model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
             copilot = GeminiGroundedCopilot(api_key=gemini_key, model=model)
             return await copilot.answer(request)
-        except Exception:
+        except Exception as e:
+            logger.warning("Gemini copilot query failed, using fallback: %s", str(e)[:300])
             # Transparent fallback on any network error, rate limit, or invalid response
             fallback_res = LocalGroundedCopilot.answer(request)
             fallback_res.is_offline_fallback = True
