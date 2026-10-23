@@ -1,0 +1,155 @@
+{
+  "timestamp": "2026-09-22T06:11:57.635Z",
+  "totalProducts": 27,
+  "splits": {
+    "benchmarkCount": 23,
+    "heldOutCount": 4
+  },
+  "fieldAccuracy": {
+    "mrp": {
+      "total": 27,
+      "correct": 27,
+      "accuracyPercent": 100
+    },
+    "netQuantity": {
+      "total": 27,
+      "correct": 27,
+      "accuracyPercent": 100
+    },
+    "manufacturer": {
+      "total": 27,
+      "correct": 26,
+      "accuracyPercent": 96.3
+    },
+    "address": {
+      "total": 27,
+      "correct": 27,
+      "accuracyPercent": 100
+    },
+    "packingDate": {
+      "total": 27,
+      "correct": 27,
+      "accuracyPercent": 100
+    },
+    "consumerCare": {
+      "total": 27,
+      "correct": 27,
+      "accuracyPercent": 100
+    },
+    "overall": {
+      "total": 162,
+      "correct": 161,
+      "accuracyPercent": 99.4
+    }
+  },
+  "complianceDecision": {
+    "truePass": 23,
+    "trueReview": 3,
+    "falsePass": 0,
+    "falseReview": 1,
+    "falsePassRatePercent": 0,
+    "falseReviewRatePercent": 4.2,
+    "decisionAccuracyPercent": 96.3
+  },
+  "byLevel": {
+    "level_1_synthetic": {
+      "total": 6,
+      "fieldAccuracyPercent": 100,
+      "decisionAccuracyPercent": 100
+    },
+    "level_2_real": {
+      "total": 6,
+      "fieldAccuracyPercent": 100,
+      "decisionAccuracyPercent": 100
+    },
+    "level_3_multilingual": {
+      "total": 7,
+      "fieldAccuracyPercent": 100,
+      "decisionAccuracyPercent": 100
+    },
+    "level_4_adversarial": {
+      "total": 8,
+      "fieldAccuracyPercent": 97.9,
+      "decisionAccuracyPercent": 87.5
+    }
+  },
+  "byLanguage": {
+    "eng": {
+      "total": 20,
+      "fieldAccuracyPercent": 99.2,
+      "decisionAccuracyPercent": 95
+    },
+    "hin": {
+      "total": 2,
+      "fieldAccuracyPercent": 100,
+      "decisionAccuracyPercent": 100
+    },
+    "eng+hin": {
+      "total": 1,
+      "fieldAccuracyPercent": 100,
+      "decisionAccuracyPercent": 100
+    },
+    "mal": {
+      "total": 1,
+      "fieldAccuracyPercent": 100,
+      "decisionAccuracyPercent": 100
+    },
+    "tam": {
+      "total": 1,
+      "fieldAccuracyPercent": 100,
+      "decisionAccuracyPercent": 100
+    },
+    "kan": {
+      "total": 1,
+      "fieldAccuracyPercent": 100,
+      "decisionAccuracyPercent": 100
+    },
+    "tel": {
+      "total": 1,
+      "fieldAccuracyPercent": 100,
+      "decisionAccuracyPercent": 100
+    }
+  },
+  "bySplit": {
+    "benchmark": {
+      "total": 23,
+      "fieldAccuracyPercent": 99.3,
+      "decisionAccuracyPercent": 95.7
+    },
+    "held_out_test": {
+      "total": 4,
+      "fieldAccuracyPercent": 100,
+      "decisionAccuracyPercent": 100
+    }
+  },
+  "rootCauses": {
+    "FALSE_REVIEW_UNWARRANTED_FLAG": 1,
+    "MANUFACTURER_EXTRACTION_GAP": 1
+  },
+  "failures": [
+    {
+      "id": "ADV_006_COPYRIGHT_YEAR_COLLISION",
+      "name": "Copyright Year (© 2021) with Packaging Date (08/2024)",
+      "language": "eng",
+      "level": "level_4_adversarial",
+      "split": "benchmark",
+      "fieldMatches": {
+        "mrp": true,
+        "netQuantity": true,
+        "manufacturer": false,
+        "address": true,
+        "packingDate": true,
+        "consumerCare": true
+      },
+      "expectedCompliance": "PASS",
+      "actualCompliance": "REVIEW",
+      "decisionMatch": false,
+      "isFalsePass": false,
+      "isFalseReview": true,
+      "rootCauses": [
+        "FALSE_REVIEW_UNWARRANTED_FLAG",
+        "MANUFACTURER_EXTRACTION_GAP"
+      ]
+    }
+  ]
+}

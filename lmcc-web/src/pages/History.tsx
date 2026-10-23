@@ -1,0 +1,596 @@
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft,
+  RefreshCw,
+  AlertTriangle,
+  FileText,
+  ChevronRight,
+  PlusCircle,
+  Clock,
+  WifiOff,
+  Search,
+  RotateCw,
+} from 'lucide-react';
+import { getReports } from '../services/api';
+import { getLocalReports, LocalReport, getReportLifecycleState, ReportLifecycleState } from '../services/storage/localReports';
+import { syncPendingReports, registerSyncListener, isReportSyncing } from '../services/sync/reportSync';
+import GlowBackground from '../components/ui/GlowBackground';
+
+interface HistoryItem {
+  id: string; // server ID or localId
+  origin: 'server' | 'local_pending' | 'local_synced' | 'local_failed';
+  lifecycleState: ReportLifecycleState;
+  createdAt: string;
+  verdict: 'PASS' | 'REVIEW';
+  productName?: string;
+  mrp?: string;
+  netQuantity?: string;
+  dateDeclaration?: string;
+  issueCount: number;
+  serverId?: string | null;
+  lastError?: string | null;
+}
+
+export const History: React.FC = () => {
+  const navigate = useNavigate();
+  const [items, setItems] = useState<HistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isOfflineView, setIsOfflineView] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterVerdict, setFilterVerdict] = useState<'ALL' | 'PASS' | 'REVIEW' | 'UNSYNCED'>('ALL');
+  const [isSyncing, setIsSyncing] = useState(isReportSyncing());
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const lastFocusFetchRef = useRef(0);
+
+  const fetchHistory = useCallback(async (showLoadingSpinner: boolean = true) => {
+    if (showLoadingSpinner) {
+      setLoading(true);
+    }
+    setError(null);
+    setIsOfflineView(false);
+
+    let localList: LocalReport[] = [];
+    try {
+      localList = await getLocalReports();
+    } catch (e) {
+      console.warn('Failed to read local reports:', e);
+    }
+
+    const pendingCount = localList.filter((l) => l.syncStatus === 'pending' || l.syncStatus === 'failed').length;
+    setPendingSyncCount(pendingCount);
+
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+    if (!isOnline) {
+      setIsOfflineView(true);
+      const mappedLocal: HistoryItem[] = localList.map((r) => ({
+        id: r.localId,
+        origin: r.syncStatus === 'synced' ? 'local_synced' : r.syncStatus === 'failed' ? 'local_failed' : 'local_pending',
+        lifecycleState: getReportLifecycleState(r, isReportSyncing()),
+        createdAt: r.createdAt,
+        verdict: r.payload.verdict,
+        productName: r.payload.productName,
+        mrp: r.payload.mrp,
+        netQuantity: r.payload.netQuantity,
+        dateDeclaration: r.payload.dateDeclaration,
+        issueCount: r.payload.issueCount || (r.payload.issues ? r.payload.issues.length : 0),
+        serverId: r.serverId,
+        lastError: r.lastError,
+      }));
+      setItems(mappedLocal);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const serverReports = await getReports(50);
+      const serverIds = new Set(serverReports.map((s) => s.id));
+
+      const pendingLocal: HistoryItem[] = localList
+        .filter((l) => l.syncStatus === 'pending' || l.syncStatus === 'failed' || (l.serverId && !serverIds.has(l.serverId)))
+        .map((r) => ({
+          id: r.localId,
+          origin: r.syncStatus === 'failed' ? 'local_failed' : 'local_pending',
+          lifecycleState: getReportLifecycleState(r, isReportSyncing()),
+          createdAt: r.createdAt,
+          verdict: r.payload.verdict,
+          productName: r.payload.productName,
+          mrp: r.payload.mrp,
+          netQuantity: r.payload.netQuantity,
+          dateDeclaration: r.payload.dateDeclaration,
+          issueCount: r.payload.issueCount || (r.payload.issues ? r.payload.issues.length : 0),
+          serverId: r.serverId,
+          lastError: r.lastError,
+        }));
+
+      const mappedServer: HistoryItem[] = serverReports.map((s) => ({
+        id: s.id,
+        origin: 'server',
+        lifecycleState: 'SUBMITTED',
+        createdAt: s.createdAt,
+        verdict: s.verdict as 'PASS' | 'REVIEW',
+        productName: s.productName,
+        mrp: s.mrp,
+        netQuantity: s.netQuantity,
+        dateDeclaration: s.dateDeclaration,
+        issueCount: s.issueCount,
+        serverId: s.id,
+      }));
+
+      setItems([...pendingLocal, ...mappedServer]);
+    } catch (err: unknown) {
+      setIsOfflineView(true);
+      if (localList.length > 0) {
+        const mappedLocal: HistoryItem[] = localList.map((r) => ({
+          id: r.localId,
+          origin: r.syncStatus === 'synced' ? 'local_synced' : r.syncStatus === 'failed' ? 'local_failed' : 'local_pending',
+          lifecycleState: getReportLifecycleState(r, isReportSyncing()),
+          createdAt: r.createdAt,
+          verdict: r.payload.verdict,
+          productName: r.payload.productName,
+          mrp: r.payload.mrp,
+          netQuantity: r.payload.netQuantity,
+          dateDeclaration: r.payload.dateDeclaration,
+          issueCount: r.payload.issueCount || (r.payload.issues ? r.payload.issues.length : 0),
+          serverId: r.serverId,
+          lastError: r.lastError,
+        }));
+        setItems(mappedLocal);
+      } else {
+        const msg = err instanceof Error ? err.message : 'Unable to load report history.';
+        setError(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Sync listener and lifecycle monitoring
+  useEffect(() => {
+    fetchHistory();
+
+    const unsubscribe = registerSyncListener((syncing, count) => {
+      setIsSyncing(syncing);
+      setPendingSyncCount(count);
+      if (!syncing) {
+        fetchHistory(false);
+      }
+    });
+
+    // Throttled window focus & visibility auto-refresh (min 20s between calls)
+    const handleFocusOrVisible = () => {
+      const now = Date.now();
+      if (now - lastFocusFetchRef.current > 20000) {
+        lastFocusFetchRef.current = now;
+        fetchHistory(false);
+      }
+    };
+
+    window.addEventListener('focus', handleFocusOrVisible);
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+    window.addEventListener('online', handleFocusOrVisible);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('focus', handleFocusOrVisible);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
+      window.removeEventListener('online', handleFocusOrVisible);
+    };
+  }, [fetchHistory]);
+
+  const handleManualSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      await syncPendingReports();
+    } finally {
+      setIsSyncing(false);
+      fetchHistory(false);
+    }
+  };
+
+  const handleCopyId = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const formatDate = (isoString: string) => {
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleString(undefined, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return isoString;
+    }
+  };
+
+  // Filter items
+  const filteredItems = items.filter((item) => {
+    const matchesVerdict =
+      filterVerdict === 'ALL'
+        ? true
+        : filterVerdict === 'UNSYNCED'
+        ? item.origin === 'local_pending' || item.origin === 'local_failed'
+        : item.verdict === filterVerdict;
+    const matchesSearch =
+      !searchQuery.trim() ||
+      (item.productName && item.productName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.mrp && item.mrp.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesVerdict && matchesSearch;
+  });
+
+  const passCount = items.filter((i) => i.verdict === 'PASS').length;
+  const reviewCount = items.filter((i) => i.verdict === 'REVIEW').length;
+
+  return (
+    <div className="min-h-screen bg-[#05070b] text-slate-100 flex flex-col justify-between pb-12 selection:bg-emerald-500 selection:text-black">
+      <GlowBackground variant="subtle" />
+
+      {/* Top Floating Header */}
+      <header className="sticky top-3 sm:top-5 z-40 max-w-4xl w-full mx-auto px-4">
+        <div className="px-4 py-3 rounded-full bg-slate-950/80 border border-white/10 backdrop-blur-2xl shadow-xl flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="flex items-center gap-1.5 text-slate-300 hover:text-white text-xs font-mono font-semibold py-1.5 px-3 rounded-full bg-white/5 border border-white/10 transition cursor-pointer"
+            aria-label="Back to Home"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>HOME</span>
+          </button>
+
+          <div className="text-center">
+            <h1 className="text-xs sm:text-sm font-black text-white tracking-wide uppercase">
+              Scan History
+            </h1>
+            <span className="text-[10px] text-slate-400 font-mono hidden sm:block">
+              Archived Compliance Screenings
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate('/scan')}
+            className="flex items-center gap-1.5 text-slate-950 bg-white hover:bg-slate-100 text-xs font-bold py-1.5 px-3 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.3)] transition cursor-pointer"
+            aria-label="Scan New Product"
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">New Scan</span>
+            <span className="sm:hidden">Scan</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="relative z-10 max-w-4xl w-full mx-auto px-4 py-8 flex-1 space-y-6">
+        {/* Continuous Report Lifecycle Monitoring Banner */}
+        <div className="rounded-2xl border p-4 backdrop-blur-xl transition font-mono text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-900/80 border-white/10">
+          <div className="flex items-center gap-2.5">
+            {isSyncing ? (
+              <>
+                <RefreshCw className="w-4 h-4 text-sky-400 animate-spin flex-shrink-0" />
+                <span className="text-sky-300 font-semibold">
+                  Synchronizing pending observations with JAMH X4 backend...
+                </span>
+              </>
+            ) : pendingSyncCount > 0 ? (
+              <>
+                <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <div>
+                  <span className="text-amber-300 font-bold block">
+                    {pendingSyncCount} observation(s) queued for sync
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Saved locally on device; will sync automatically when network stabilizes.
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                <span className="text-emerald-300 font-semibold">
+                  All observations synchronized with JAMH X4 backend
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            {pendingSyncCount > 0 && (
+              <button
+                type="button"
+                onClick={handleManualSync}
+                disabled={isSyncing}
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold rounded-full text-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>Sync Now</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => fetchHistory(true)}
+              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-full text-xs border border-white/10 transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh Status</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Analytics Summary Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-[#090d16] border border-white/[0.08] text-xs font-sans">
+          <div className="flex items-center gap-6">
+            <div>
+              <span className="text-slate-400">Total screened: </span>
+              <strong className="text-white font-semibold">{items.length}</strong>
+            </div>
+            <div>
+              <span className="text-slate-400">Compliant: </span>
+              <strong className="text-emerald-400 font-semibold">{passCount}</strong>
+            </div>
+            <div>
+              <span className="text-slate-400">Review flagged: </span>
+              <strong className="text-amber-400 font-semibold">{reviewCount}</strong>
+            </div>
+          </div>
+          <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">Rule 6 screening history</span>
+        </div>
+
+        {/* Filter & Search Bar */}
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-[#090d16] p-3 rounded-2xl border border-white/[0.08]">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search by product, price, or ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[#06080e] border border-white/[0.08] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-white/20 font-sans"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 font-sans text-xs overflow-x-auto pb-1 sm:pb-0">
+            <button
+              type="button"
+              onClick={() => setFilterVerdict('ALL')}
+              className={`px-3 py-1.5 rounded-xl border transition cursor-pointer font-medium ${
+                filterVerdict === 'ALL'
+                  ? 'bg-white text-slate-950 font-semibold border-white'
+                  : 'bg-white/[0.03] text-slate-400 border-white/[0.08] hover:text-white'
+              }`}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterVerdict('PASS')}
+              className={`px-3 py-1.5 rounded-xl border transition cursor-pointer font-medium ${
+                filterVerdict === 'PASS'
+                  ? 'bg-emerald-500 text-slate-950 font-semibold border-emerald-400'
+                  : 'bg-white/[0.03] text-slate-400 border-white/[0.08] hover:text-emerald-400'
+              }`}
+            >
+              Passed
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterVerdict('REVIEW')}
+              className={`px-3 py-1.5 rounded-xl border transition cursor-pointer font-medium ${
+                filterVerdict === 'REVIEW'
+                  ? 'bg-amber-500 text-slate-950 font-semibold border-amber-400'
+                  : 'bg-white/[0.03] text-slate-400 border-white/[0.08] hover:text-amber-400'
+              }`}
+            >
+              Review
+            </button>
+            {pendingSyncCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterVerdict('UNSYNCED')}
+                className={`px-3 py-1.5 rounded-xl border transition cursor-pointer font-medium ${
+                  filterVerdict === 'UNSYNCED'
+                    ? 'bg-sky-500 text-slate-950 font-semibold border-sky-400'
+                    : 'bg-sky-500/10 text-sky-400 border-sky-500/30 hover:bg-sky-500/20'
+                }`}
+              >
+                Queued ({pendingSyncCount})
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Status Indicators */}
+        {isOfflineView && (
+          <div className="bg-amber-950/30 border border-amber-500/30 p-3.5 rounded-2xl flex items-center gap-2.5 text-xs text-amber-300 font-mono backdrop-blur-xl">
+            <WifiOff className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <span>Offline mode — viewing reports stored locally in IndexedDB on this device.</span>
+          </div>
+        )}
+
+        {/* Content States */}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-white/5 text-emerald-400 flex items-center justify-center mb-4 border border-white/10 shadow-lg">
+              <RefreshCw className="w-6 h-6 animate-spin" />
+            </div>
+            <h3 className="text-base font-bold text-white font-mono uppercase">Loading reports...</h3>
+            <p className="text-xs text-slate-400 mt-1 font-mono">Retrieving screening observations from registry</p>
+          </div>
+        ) : error ? (
+          <div className="bg-slate-900/80 rounded-3xl p-8 border border-red-500/30 text-center max-w-md mx-auto my-8 backdrop-blur-xl">
+            <div className="w-14 h-14 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-bold text-white mb-1">Unable to load report history</h3>
+            <p className="text-xs text-slate-400 mb-6 leading-relaxed font-mono">
+              {error} Check your connection or verify backend service availability.
+            </p>
+            <button
+              type="button"
+              onClick={() => fetchHistory(true)}
+              className="w-full py-3 bg-white text-slate-950 hover:bg-slate-100 text-xs font-bold rounded-full flex items-center justify-center gap-2 transition cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Retry</span>
+            </button>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="bg-slate-900/80 rounded-3xl p-8 border border-white/10 text-center max-w-md mx-auto my-8 backdrop-blur-xl">
+            <div className="w-14 h-14 rounded-2xl bg-white/5 text-slate-400 flex items-center justify-center mx-auto mb-4 border border-white/10">
+              <FileText className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-bold text-white mb-1">No matching reports</h3>
+            <p className="text-xs text-slate-400 mb-6 leading-relaxed font-mono">
+              {items.length === 0
+                ? 'Scan a packaged product and submit a report to archive it here.'
+                : 'No reports match your current search and filter criteria.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/scan')}
+              className="w-full py-3.5 bg-white text-slate-950 hover:bg-slate-100 text-sm font-bold rounded-full flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_20px_rgba(255,255,255,0.25)]"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Scan Product</span>
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3.5">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">
+                Reports ({filteredItems.length})
+              </span>
+              <button
+                type="button"
+                onClick={() => fetchHistory(true)}
+                className="text-[11px] font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
+                title="Refresh history"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Refresh</span>
+              </button>
+            </div>
+
+            {filteredItems.map((report) => {
+              const isPass = report.verdict === 'PASS';
+              const hasIssues = report.issueCount > 0;
+
+              return (
+                <div
+                  key={report.id}
+                  onClick={() => navigate(`/history/${report.id}`)}
+                  className="bg-[#090d16] hover:bg-[#0c1220] border border-white/[0.08] hover:border-white/20 rounded-2xl p-5 shadow-lg transition cursor-pointer group font-sans"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    {/* Left: Product & Verdict Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap text-xs">
+                        {/* 1. Screening Verdict Badge */}
+                        <span
+                          className={`inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-0.5 rounded-full border ${
+                            isPass
+                              ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                              : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                          }`}
+                        >
+                          {isPass ? 'Passed' : 'Review'}
+                        </span>
+
+                        {/* 2. Storage Origin Badge */}
+                        {report.origin === 'local_pending' && (
+                          <span className="text-[11px] text-amber-400">
+                            · Queued
+                          </span>
+                        )}
+                        {report.origin === 'local_synced' && (
+                          <span className="text-[11px] text-slate-500">
+                            · Synced
+                          </span>
+                        )}
+
+                        <span className="text-[11px] text-slate-500 ml-auto">
+                          {formatDate(report.createdAt)}
+                        </span>
+                      </div>
+
+                      <h3 className="text-sm font-semibold text-white truncate">
+                        {report.productName || 'Packaged Commodity'}
+                      </h3>
+
+                      {/* Product Declarations Snippet */}
+                      <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-400 flex-wrap">
+                        {report.mrp && (
+                          <span>
+                            <span className="text-slate-500">MRP: </span>
+                            <span className="text-slate-300">{report.mrp}</span>
+                          </span>
+                        )}
+                        {report.netQuantity && (
+                          <span>
+                            <span className="text-slate-500">Net: </span>
+                            <span className="text-slate-300">{report.netQuantity}</span>
+                          </span>
+                        )}
+                        {report.dateDeclaration && (
+                          <span>
+                            <span className="text-slate-500">Date: </span>
+                            <span className="text-slate-300">{report.dateDeclaration}</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Issue summary */}
+                      <div className="mt-2 text-xs">
+                        {hasIssues ? (
+                          <span className="text-amber-400">
+                            {report.issueCount} {report.issueCount === 1 ? 'item requires' : 'items require'} manual review
+                          </span>
+                        ) : (
+                          <span className="text-emerald-400/90">
+                            All mandatory declarations detected
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right: Chevron */}
+                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white group-hover:translate-x-0.5 transition flex-shrink-0 mt-2" />
+                  </div>
+
+                  {/* Card Footer: Copyable Report ID */}
+                  <div className="mt-3.5 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                    <span className="truncate mr-2">
+                      ID: {report.id}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleCopyId(e, report.id)}
+                      className="px-2 py-0.5 bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-slate-200 rounded text-[10px] transition border border-white/[0.06] cursor-pointer"
+                      title="Copy full Report ID"
+                    >
+                      {copiedId === report.id ? 'Copied' : 'Copy ID'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default History;

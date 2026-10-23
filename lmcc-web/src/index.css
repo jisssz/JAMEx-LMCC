@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+  background-color: #06080e;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #06080e;
+  color: #f8fafc;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+  letter-spacing: -0.01em;
+}
+
+/* Hairline borders & refined editorial surfaces */
+.border-hairline {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.surface-card {
+  background: rgba(14, 19, 32, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.surface-subtle {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Editorial typography scale */
+.font-display-serif {
+  font-family: 'Newsreader', Georgia, serif;
+}
+
+.font-display-italic {
+  font-family: 'Newsreader', Georgia, serif;
+  font-style: italic;
+}
+
+.hero-display {
+  font-family: 'Newsreader', Georgia, serif;
+  font-size: clamp(3.25rem, 7.5vw, 6.25rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  font-weight: 400;
+}
+
+.section-display {
+  font-family: 'Newsreader', Georgia, serif;
+  font-size: clamp(2.25rem, 5vw, 3.75rem);
+  line-height: 1.06;
+  letter-spacing: -0.025em;
+  font-weight: 400;
+}
+
+@keyframes scanBeam {
+  0%, 100% {
+    top: 8%;
+    opacity: 0.25;
+  }
+  50% {
+    top: 88%;
+    opacity: 0.85;
+  }
+}
+
+.animate-scan-beam {
+  animation: scanBeam 3.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
