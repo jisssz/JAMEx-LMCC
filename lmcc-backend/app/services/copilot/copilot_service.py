@@ -196,9 +196,12 @@ class GeminiGroundedCopilot:
     def __init__(self, api_key: str, model: Optional[str] = None):
         self.api_key = api_key.strip()
         self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-1.5-flash").strip()
-        self.endpoint = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
-        )
+
+    def _get_headers(self) -> dict:
+        return {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key,
+        }
 
     async def answer(self, request: CopilotQueryRequest) -> CopilotResponse:
         system_instructions = (
@@ -233,8 +236,21 @@ class GeminiGroundedCopilot:
             },
         }
 
+        headers = self._get_headers()
+        used_model = self.model
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{used_model}:generateContent"
+
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(self.endpoint, json=payload)
+            resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code == 404:
+                # Cascade to secondary flash model on 404
+                secondary_model = "gemini-2.0-flash" if used_model != "gemini-2.0-flash" else "gemini-1.5-flash"
+                sec_url = f"https://generativelanguage.googleapis.com/v1beta/models/{secondary_model}:generateContent"
+                sec_resp = await client.post(sec_url, json=payload, headers=headers)
+                if sec_resp.status_code == 200:
+                    resp = sec_resp
+                    used_model = secondary_model
+
             if resp.status_code != 200:
                 raise Exception(f"Gemini API returned status {resp.status_code}: {resp.text}")
 
@@ -269,7 +285,7 @@ class GeminiGroundedCopilot:
                     "How do I correct an OCR misreading using Human Review?",
                 ]),
                 is_offline_fallback=False,
-                provider_used=f"gemini-{self.model}",
+                provider_used=f"gemini-{used_model}",
             )
 
 

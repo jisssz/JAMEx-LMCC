@@ -450,9 +450,30 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
         self.api_key = api_key.strip()
         self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-1.5-flash").strip()
         self.fallback = MockInspectionAiProvider()
-        self.endpoint = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
-        )
+
+    def _get_headers(self) -> Dict[str, str]:
+        return {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key,
+        }
+
+    def _get_url(self, model: str) -> str:
+        return f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+    async def _post_generate(self, client: httpx.AsyncClient, payload: dict) -> tuple[Optional[httpx.Response], str]:
+        """Posts generateContent with primary model, cascading to secondary flash model on 404."""
+        headers = self._get_headers()
+        primary_model = self.model
+        url = self._get_url(primary_model)
+        resp = await client.post(url, json=payload, headers=headers)
+        if resp.status_code == 404:
+            # If primary model is 404 (e.g. deprecated / unavailable in region), cascade to 2.0-flash or 1.5-flash
+            secondary_model = "gemini-2.0-flash" if primary_model != "gemini-2.0-flash" else "gemini-1.5-flash"
+            sec_url = self._get_url(secondary_model)
+            sec_resp = await client.post(sec_url, json=payload, headers=headers)
+            if sec_resp.status_code == 200:
+                return sec_resp, secondary_model
+        return resp, primary_model
 
     async def generate_summary(
         self, request: InspectionSummaryRequest
@@ -500,8 +521,8 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(self.endpoint, json=payload)
-                if resp.status_code != 200:
+                resp, used_model = await self._post_generate(client, payload)
+                if not resp or resp.status_code != 200:
                     fb = await self.fallback.generate_summary(request)
                     fb.provider_used = "mock-statutory-engine (fallback)"
                     fb.is_ai_generated = False
@@ -529,7 +550,7 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
                     applicable_rules=parsed.get("applicable_rules", []),
                     recommended_next_steps=parsed.get("recommended_next_steps", []),
                     is_ai_generated=True,
-                    provider_used=f"gemini-{self.model}",
+                    provider_used=f"gemini-{used_model}",
                     disclaimer=STATUTORY_DISCLAIMER,
                 )
         except Exception:
@@ -585,8 +606,8 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(self.endpoint, json=payload)
-                if resp.status_code != 200:
+                resp, used_model = await self._post_generate(client, payload)
+                if not resp or resp.status_code != 200:
                     fb = await self.fallback.assistant_chat(request)
                     fb.provider_used = "mock-statutory-engine (fallback)"
                     fb.is_ai_generated = False
@@ -624,7 +645,7 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
                     ]),
                     is_ai_generated=True,
                     is_offline_fallback=False,
-                    provider_used=f"gemini-{self.model}",
+                    provider_used=f"gemini-{used_model}",
                     disclaimer=STATUTORY_DISCLAIMER,
                     legal_disclaimer=STATUTORY_DISCLAIMER,
                 )

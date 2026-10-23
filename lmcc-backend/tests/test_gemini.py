@@ -292,7 +292,8 @@ def test_gemini_provider_with_api_key_and_custom_model(monkeypatch):
     provider = get_inspection_provider()
     assert isinstance(provider, GeminiInspectionAiProvider)
     assert provider.model == "gemini-1.5-pro"
-    assert "gemini-1.5-pro" in provider.endpoint
+    assert provider._get_url(provider.model).endswith("models/gemini-1.5-pro:generateContent")
+    assert provider._get_headers()["x-goog-api-key"] == "test-fake-key-12345"
 
     # Test seamless fallback on simulated HTTP network error
     req = InspectionSummaryRequest(
