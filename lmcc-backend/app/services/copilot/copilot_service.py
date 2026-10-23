@@ -198,7 +198,7 @@ class GeminiGroundedCopilot:
 
     def __init__(self, api_key: str, model: Optional[str] = None):
         self.api_key = api_key.strip()
-        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-1.5-flash").strip()
+        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
 
     def _get_headers(self) -> dict:
         return {
@@ -247,7 +247,7 @@ class GeminiGroundedCopilot:
             resp = await client.post(url, json=payload, headers=headers)
             if resp.status_code == 404:
                 # Cascade to secondary flash model on 404
-                secondary_model = "gemini-2.0-flash" if used_model != "gemini-2.0-flash" else "gemini-1.5-flash"
+                secondary_model = "gemini-flash-latest" if used_model != "gemini-flash-latest" else "gemini-2.5-flash"
                 sec_url = f"https://generativelanguage.googleapis.com/v1beta/models/{secondary_model}:generateContent"
                 sec_resp = await client.post(sec_url, json=payload, headers=headers)
                 if sec_resp.status_code == 200:
@@ -299,7 +299,7 @@ async def process_copilot_query(request: CopilotQueryRequest) -> CopilotResponse
 
     if gemini_key and provider_type not in ["mock", "local"]:
         try:
-            model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+            model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
             copilot = GeminiGroundedCopilot(api_key=gemini_key, model=model)
             return await copilot.answer(request)
         except Exception as e:

@@ -451,7 +451,7 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
 
     def __init__(self, api_key: str, model: Optional[str] = None):
         self.api_key = api_key.strip()
-        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-1.5-flash").strip()
+        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
         self.fallback = MockInspectionAiProvider()
 
     def _get_headers(self) -> Dict[str, str]:
@@ -472,8 +472,8 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
         if resp.status_code != 200:
             logger.warning("Gemini primary model %s returned status %d: %s", primary_model, resp.status_code, resp.text[:400])
         if resp.status_code == 404:
-            # If primary model is 404 (e.g. deprecated / unavailable in region), cascade to 2.0-flash or 1.5-flash
-            secondary_model = "gemini-2.0-flash" if primary_model != "gemini-2.0-flash" else "gemini-1.5-flash"
+            # If primary model is 404, cascade to gemini-flash-latest or gemini-2.5-flash
+            secondary_model = "gemini-flash-latest" if primary_model != "gemini-flash-latest" else "gemini-2.5-flash"
             sec_url = self._get_url(secondary_model)
             sec_resp = await client.post(sec_url, json=payload, headers=headers)
             if sec_resp.status_code != 200:
@@ -673,7 +673,7 @@ def get_inspection_provider() -> InspectionAiProvider:
     provider_pref = (os.getenv("COPILOT_PROVIDER") or os.getenv("INSPECTION_AI_PROVIDER") or "").strip().lower()
 
     if gemini_key and provider_pref != "mock" and provider_pref != "local":
-        model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+        model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         return GeminiInspectionAiProvider(api_key=gemini_key, model=model)
 
     return MockInspectionAiProvider()
