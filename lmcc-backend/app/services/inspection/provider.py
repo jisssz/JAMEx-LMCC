@@ -470,7 +470,7 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
 
     def __init__(self, api_key: str, model: Optional[str] = None):
         self.api_key = api_key.strip()
-        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-flash-latest").strip()
+        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-flash-lite-latest").strip()
         self.fallback = MockInspectionAiProvider()
 
     def _get_headers(self) -> Dict[str, str]:
@@ -486,7 +486,7 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
         """Posts generateContent with primary model, cascading across available flash models on 404/429/503."""
         headers = self._get_headers()
         primary_model = self.model
-        candidates = [primary_model, "gemini-flash-latest", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-lite-latest"]
+        candidates = [primary_model, "gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-latest"]
         seen = set()
         models_to_try = [m for m in candidates if m and not (m in seen or seen.add(m))]
 
@@ -696,7 +696,7 @@ def get_inspection_provider() -> InspectionAiProvider:
     provider_pref = (os.getenv("COPILOT_PROVIDER") or os.getenv("INSPECTION_AI_PROVIDER") or "").strip().lower()
 
     if gemini_key and provider_pref != "mock" and provider_pref != "local":
-        model = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+        model = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
         return GeminiInspectionAiProvider(api_key=gemini_key, model=model)
 
     return MockInspectionAiProvider()

@@ -96,7 +96,7 @@ async def inspection_diagnostic():
     Sanitized diagnostic endpoint to test Gemini API connectivity without exposing secret values.
     """
     gemini_key = (os.getenv("GEMINI_API_KEY") or "").strip()
-    configured_model = (os.getenv("GEMINI_MODEL") or "gemini-flash-latest").strip()
+    configured_model = (os.getenv("GEMINI_MODEL") or "gemini-flash-lite-latest").strip()
     if not gemini_key:
         return {
             "gemini_key_configured": False,
@@ -155,6 +155,24 @@ async def inspection_diagnostic():
             except Exception as e:
                 model_availability[tm] = {"status": "timeout", "result": str(e)}
 
+        # Test structured inspection summary generation via provider
+        summary_provider = None
+        summary_is_ai = False
+        summary_error = None
+        try:
+            diag_req = InspectionSummaryRequest(
+                product_name="Diagnostic Organic Flour 1kg",
+                verdict="REVIEW",
+                extracted_declarations={"net_quantity": "1 kg"},
+                flagged_rules=["LM-PCR-2011-R6-1-C"],
+                potential_violations=[{"field": "net_quantity", "issue": "Diagnostic check"}],
+            )
+            diag_res = await generate_inspection_summary(diag_req)
+            summary_provider = diag_res.provider_used
+            summary_is_ai = diag_res.is_ai_generated
+        except Exception as e:
+            summary_error = str(e)
+
         return {
             "gemini_key_configured": True,
             "key_prefix": gemini_key[:4] + "..." if len(gemini_key) > 4 else "...",
@@ -162,4 +180,7 @@ async def inspection_diagnostic():
             "models_endpoint_status": resp.status_code,
             "available_models_count": len(models_data),
             "model_availability": model_availability,
+            "summary_provider_used": summary_provider,
+            "summary_is_ai_generated": summary_is_ai,
+            "summary_error": summary_error,
         }

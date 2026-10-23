@@ -217,7 +217,7 @@ class GeminiGroundedCopilot:
 
     def __init__(self, api_key: str, model: Optional[str] = None):
         self.api_key = api_key.strip()
-        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-flash-latest").strip()
+        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-flash-lite-latest").strip()
 
     def _get_headers(self) -> dict:
         return {
@@ -259,7 +259,7 @@ class GeminiGroundedCopilot:
         }
 
         headers = self._get_headers()
-        candidates = [self.model, "gemini-flash-latest", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-lite-latest"]
+        candidates = [self.model, "gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-latest"]
         seen = set()
         models_to_try = [m for m in candidates if m and not (m in seen or seen.add(m))]
 
@@ -322,7 +322,7 @@ async def process_copilot_query(request: CopilotQueryRequest) -> CopilotResponse
 
     if gemini_key and provider_type not in ["mock", "local"]:
         try:
-            model = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+            model = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
             copilot = GeminiGroundedCopilot(api_key=gemini_key, model=model)
             return await copilot.answer(request)
         except Exception as e:
