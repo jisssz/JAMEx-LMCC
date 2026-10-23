@@ -470,7 +470,7 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
 
     def __init__(self, api_key: str, model: Optional[str] = None):
         self.api_key = api_key.strip()
-        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-3.8-flash").strip()
+        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-flash-latest").strip()
         self.fallback = MockInspectionAiProvider()
 
     def _get_headers(self) -> Dict[str, str]:
@@ -483,10 +483,10 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
         return f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
     async def _post_generate(self, client: httpx.AsyncClient, payload: dict) -> tuple[Optional[httpx.Response], str]:
-        """Posts generateContent with primary model, cascading across available flash models on 404."""
+        """Posts generateContent with primary model, cascading across available flash models on 404/429/503."""
         headers = self._get_headers()
         primary_model = self.model
-        candidates = [primary_model, "gemini-3.8-flash", "gemini-flash-latest", "gemini-3.7-flash"]
+        candidates = [primary_model, "gemini-flash-latest", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-lite-latest"]
         seen = set()
         models_to_try = [m for m in candidates if m and not (m in seen or seen.add(m))]
 
@@ -498,7 +498,8 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
             if resp.status_code == 200:
                 return resp, cand
             logger.warning("Gemini model %s returned status %d: %s", cand, resp.status_code, resp.text[:300])
-            if resp.status_code != 404:
+            if resp.status_code not in (404, 429, 503):
+                # Break on unrecoverable client errors (e.g. 400 Invalid Argument, 401/403 Permission Denied)
                 break
 
         return last_resp, primary_model
@@ -695,7 +696,7 @@ def get_inspection_provider() -> InspectionAiProvider:
     provider_pref = (os.getenv("COPILOT_PROVIDER") or os.getenv("INSPECTION_AI_PROVIDER") or "").strip().lower()
 
     if gemini_key and provider_pref != "mock" and provider_pref != "local":
-        model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+        model = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
         return GeminiInspectionAiProvider(api_key=gemini_key, model=model)
 
     return MockInspectionAiProvider()

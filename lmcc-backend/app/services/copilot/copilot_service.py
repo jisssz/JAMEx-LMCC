@@ -217,7 +217,7 @@ class GeminiGroundedCopilot:
 
     def __init__(self, api_key: str, model: Optional[str] = None):
         self.api_key = api_key.strip()
-        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-3.8-flash").strip()
+        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-flash-latest").strip()
 
     def _get_headers(self) -> dict:
         return {
@@ -259,7 +259,7 @@ class GeminiGroundedCopilot:
         }
 
         headers = self._get_headers()
-        candidates = [self.model, "gemini-3.8-flash", "gemini-flash-latest", "gemini-3.7-flash"]
+        candidates = [self.model, "gemini-flash-latest", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-lite-latest"]
         seen = set()
         models_to_try = [m for m in candidates if m and not (m in seen or seen.add(m))]
 
@@ -274,7 +274,7 @@ class GeminiGroundedCopilot:
                 if cand_resp.status_code == 200:
                     break
                 logger.warning("Gemini copilot model %s returned status %d: %s", cand, cand_resp.status_code, cand_resp.text[:300])
-                if cand_resp.status_code != 404:
+                if cand_resp.status_code not in (404, 429, 503):
                     break
 
             if not resp or resp.status_code != 200:
@@ -322,7 +322,7 @@ async def process_copilot_query(request: CopilotQueryRequest) -> CopilotResponse
 
     if gemini_key and provider_type not in ["mock", "local"]:
         try:
-            model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+            model = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
             copilot = GeminiGroundedCopilot(api_key=gemini_key, model=model)
             return await copilot.answer(request)
         except Exception as e:

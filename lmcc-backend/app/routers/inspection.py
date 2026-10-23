@@ -96,7 +96,7 @@ async def inspection_diagnostic():
     Sanitized diagnostic endpoint to test Gemini API connectivity without exposing secret values.
     """
     gemini_key = (os.getenv("GEMINI_API_KEY") or "").strip()
-    configured_model = (os.getenv("GEMINI_MODEL") or "gemini-3.8-flash").strip()
+    configured_model = (os.getenv("GEMINI_MODEL") or "gemini-flash-latest").strip()
     if not gemini_key:
         return {
             "gemini_key_configured": False,
