@@ -6,6 +6,25 @@ from typing import List, Optional
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_gemini_json(raw_text: str) -> dict:
+    """Safely extracts JSON from Gemini output, handling code fences or extraneous whitespace."""
+    text = (raw_text or "").strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        m = re.search(r"(\{.*\})", text, re.DOTALL)
+        if m:
+            return json.loads(m.group(1))
+        raise
 from app.schemas.copilot import (
     CopilotQueryRequest,
     CopilotResponse,
@@ -229,12 +248,12 @@ class GeminiGroundedCopilot:
         }
 
         payload = {
-            "system_instruction": {"parts": [{"text": system_instructions}]},
+            "systemInstruction": {"parts": [{"text": system_instructions}]},
             "contents": [
                 {"parts": [{"text": json.dumps(user_content)}]}
             ],
             "generationConfig": {
-                "response_mime_type": "application/json",
+                "responseMimeType": "application/json",
                 "temperature": 0.1,
             },
         }
@@ -263,7 +282,7 @@ class GeminiGroundedCopilot:
 
             res_json = resp.json()
             raw_text = res_json["candidates"][0]["content"]["parts"][0]["text"]
-            parsed = json.loads(raw_text)
+            parsed = _parse_gemini_json(raw_text)
 
             citations_raw = parsed.get("citations", [])
             citations = []

@@ -8,6 +8,25 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_gemini_json(raw_text: str) -> dict:
+    """Safely extracts JSON from Gemini output, handling code fences or extraneous whitespace."""
+    text = (raw_text or "").strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        m = re.search(r"(\{.*\})", text, re.DOTALL)
+        if m:
+            return json.loads(m.group(1))
+        raise
+
 from app.schemas.inspection import (
     InspectionSummaryRequest,
     InspectionSummaryResponse,
@@ -520,10 +539,10 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
         }
 
         payload = {
-            "system_instruction": {"parts": [{"text": system_instruction}]},
+            "systemInstruction": {"parts": [{"text": system_instruction}]},
             "contents": [{"parts": [{"text": json.dumps(user_content)}]}],
             "generationConfig": {
-                "response_mime_type": "application/json",
+                "responseMimeType": "application/json",
                 "temperature": 0.1,
             },
         }
@@ -539,7 +558,7 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
 
                 res_json = resp.json()
                 raw_text = res_json["candidates"][0]["content"]["parts"][0]["text"]
-                parsed = json.loads(raw_text)
+                parsed = _parse_gemini_json(raw_text)
 
                 # Guardrail: Never let LLM override REVIEW verdict
                 overall_summary = parsed.get("overall_summary", "")
@@ -562,7 +581,8 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
                     provider_used=f"gemini-{used_model}",
                     disclaimer=STATUTORY_DISCLAIMER,
                 )
-        except Exception:
+        except Exception as e:
+            logger.warning("Gemini generate_summary error: %s", str(e))
             # Fallback seamlessly on any network error, format error, or rate limit
             fb = await self.fallback.generate_summary(request)
             fb.provider_used = "mock-statutory-engine (fallback)"
@@ -605,10 +625,10 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
         }
 
         payload = {
-            "system_instruction": {"parts": [{"text": system_instruction}]},
+            "systemInstruction": {"parts": [{"text": system_instruction}]},
             "contents": [{"parts": [{"text": json.dumps(user_content)}]}],
             "generationConfig": {
-                "response_mime_type": "application/json",
+                "responseMimeType": "application/json",
                 "temperature": 0.1,
             },
         }
@@ -625,7 +645,7 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
 
                 res_json = resp.json()
                 raw_text = res_json["candidates"][0]["content"]["parts"][0]["text"]
-                parsed = json.loads(raw_text)
+                parsed = _parse_gemini_json(raw_text)
 
                 citations_raw = parsed.get("citations", [])
                 citations = []
