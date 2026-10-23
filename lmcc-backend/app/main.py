@@ -121,16 +121,20 @@ from app.schemas.analytics import (
     TrendsResponse,
     BrandsResponse,
 )
+from app.routers.vision import router as vision_router, extract_package_labels
+from app.schemas.vision import VisionExtractionResponse
 
 # Register API Routers (under /api prefix)
 app.include_router(report_router)
 app.include_router(analytics_router)
+app.include_router(vision_router)
 
 # Direct aliases without /api prefix to support environments where prefix is stripped
 app.add_api_route("/health", health_check, methods=["GET"], tags=["health"])
 app.add_api_route("/report", submit_report, methods=["POST"], response_model=ReportResponse, status_code=201, tags=["reports"])
 app.add_api_route("/reports", list_reports, methods=["GET"], response_model=List[ReportRead], tags=["reports"])
 app.add_api_route("/reports/{report_id}", get_report, methods=["GET"], response_model=ReportRead, tags=["reports"])
+app.add_api_route("/extract/vision", extract_package_labels, methods=["POST"], response_model=VisionExtractionResponse, tags=["vision"])
 
 app.add_api_route("/analytics/summary", get_analytics_summary, methods=["GET"], response_model=AnalyticsSummary, tags=["analytics"])
 app.add_api_route("/analytics/issues", get_issues_breakdown, methods=["GET"], response_model=IssuesBreakdown, tags=["analytics"])

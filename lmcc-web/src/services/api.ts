@@ -388,4 +388,55 @@ export async function getAnalyticsBrands(demo?: boolean): Promise<BrandsResponse
   }
 }
 
+// ---------------------------------------------------------------------------
+// Phase C: AI-Assisted Vision Package Label Extraction API Client
+// ---------------------------------------------------------------------------
+
+export interface ExtractedFieldItem {
+  value?: string | null;
+  confidence: number;
+  status: 'detected' | 'uncertain' | 'not_detected';
+  evidence_snippet?: string | null;
+}
+
+export interface VisionExtractionResponse {
+  product_name: ExtractedFieldItem;
+  mrp: ExtractedFieldItem;
+  net_quantity: ExtractedFieldItem;
+  manufacturer: ExtractedFieldItem;
+  date_declaration: ExtractedFieldItem;
+  consumer_care: ExtractedFieldItem;
+  provider_used: string;
+  is_ai_fallback: boolean;
+  provenance: string;
+  disclaimer: string;
+}
+
+export async function requestVisionExtraction(
+  imageBase64: string,
+  ocrTextContext?: string,
+  lowConfidenceFields?: string[]
+): Promise<VisionExtractionResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/extract/vision`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      image_base64: imageBase64,
+      ocr_text_context: ocrTextContext,
+      low_confidence_fields: lowConfidenceFields,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.detail || `AI Vision extraction failed (${response.status})`);
+  }
+
+  return response.json();
+}
+
+
 

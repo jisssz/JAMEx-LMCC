@@ -19,6 +19,8 @@ import {
   X,
   Camera,
   Plus,
+  Download,
+  FileText,
 } from 'lucide-react';
 import { ExtractedLabel } from '../models/ExtractedLabel';
 import { Verdict } from '../models/Verdict';
@@ -28,6 +30,7 @@ import { useImage } from '../context/ImageContext';
 import { VerdictCard } from '../components/VerdictCard';
 import { ViolationCard } from '../components/ViolationCard';
 import GlowBackground from '../components/ui/GlowBackground';
+import { exportInspectionReportPdf, exportInspectionReportCsv } from '../services/export/reportExporter';
 
 export const Results: React.FC = () => {
   const location = useLocation();
@@ -567,6 +570,7 @@ export const Results: React.FC = () => {
         </div>
 
         {/* Primary Action Buttons */}
+        {/* Action Buttons & Exports */}
         <div className="pt-2 flex flex-col sm:flex-row gap-3">
           <button
             type="button"
@@ -587,10 +591,46 @@ export const Results: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => navigate('/scan')}
-            className="flex-1 py-3.5 px-6 rounded-full font-medium text-xs bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border border-white/[0.08] transition cursor-pointer font-sans text-center"
+            onClick={() => {
+              exportInspectionReportPdf({
+                reportId: `INSP-${Date.now().toString(36).toUpperCase()}`,
+                timestamp: new Date().toISOString(),
+                verdict,
+                extractedLabel,
+                productName: extractedLabel.productName || 'Scanned Package',
+              });
+            }}
+            className="flex items-center justify-center gap-1.5 py-3.5 px-5 rounded-full font-medium text-xs bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border border-white/[0.08] transition cursor-pointer font-sans"
+            title="Download vector PDF inspection report with Gazette citations"
           >
-            Scan another product
+            <FileText className="w-3.5 h-3.5 text-[#2ee6a6]" />
+            <span>Export PDF</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              exportInspectionReportCsv({
+                reportId: `INSP-${Date.now().toString(36).toUpperCase()}`,
+                timestamp: new Date().toISOString(),
+                verdict,
+                extractedLabel,
+                productName: extractedLabel.productName || 'Scanned Package',
+              });
+            }}
+            className="flex items-center justify-center gap-1.5 py-3.5 px-5 rounded-full font-medium text-xs bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border border-white/[0.08] transition cursor-pointer font-sans"
+            title="Download sanitized CSV inspection report"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-300" />
+            <span>Export CSV</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/scan')}
+            className="py-3.5 px-5 rounded-full font-medium text-xs bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 border border-white/[0.08] transition cursor-pointer font-sans text-center"
+          >
+            Scan another
           </button>
         </div>
       </main>

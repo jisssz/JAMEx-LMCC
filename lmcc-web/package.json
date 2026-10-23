@@ -8,14 +8,19 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "tsx --test tests/unit_tests.ts",
+    "test:export": "tsx --test tests/export_tests.ts",
+    "test:vision": "tsx --test tests/vision_fallback_test.ts",
+    "test:all": "tsx --test tests/unit_tests.ts && tsx --test tests/export_tests.ts && tsx --test tests/vision_fallback_test.ts",
     "benchmark:parser": "tsx evaluation/runners/parserBenchmark.ts",
     "benchmark:rules": "tsx evaluation/runners/rulesBenchmark.ts",
     "benchmark:generate": "tsx evaluation/runners/generateSynthetic.ts",
     "benchmark:ocr": "tsx evaluation/runners/ocrBenchmark.ts",
-    "benchmark:all": "tsx evaluation/runners/parserBenchmark.ts && tsx evaluation/runners/rulesBenchmark.ts"
+    "benchmark:vision": "tsx evaluation/runners/aiVisionBenchmark.ts",
+    "benchmark:all": "tsx evaluation/runners/parserBenchmark.ts && tsx evaluation/runners/rulesBenchmark.ts && tsx evaluation/runners/aiVisionBenchmark.ts"
   },
   "dependencies": {
     "@zxing/library": "^0.23.0",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.16.0",
     "ogl": "^1.0.11",
     "react": "^18.3.1",

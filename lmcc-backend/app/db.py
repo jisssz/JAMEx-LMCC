@@ -1,12 +1,17 @@
 import os
+import re
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 def get_database_url() -> str:
     env_url = os.getenv("DATABASE_URL")
     if env_url:
-        return env_url
-    # On Vercel / serverless runtimes, the function directory is read-only; /tmp is writable
+        clean_url = env_url.strip()
+        # Normalize legacy 'postgres://' scheme to SQLAlchemy 'postgresql://'
+        if clean_url.startswith("postgres://"):
+            clean_url = re.sub(r"^postgres://", "postgresql://", clean_url, count=1)
+        return clean_url
+    # On Vercel / serverless runtimes without managed SQL, the function directory is read-only; /tmp is writable
     if os.getenv("VERCEL") == "1" or os.getenv("VERCEL_ENV") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
         return "sqlite:////tmp/reports.db"
     return "sqlite:///./reports.db"
@@ -14,14 +19,19 @@ def get_database_url() -> str:
 
 DATABASE_URL = get_database_url()
 
-# SQLite requires check_same_thread=False for multithreaded access in FastAPI
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+# Configure engine kwargs based on dialect
+engine_kwargs = {"echo": False}
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args=connect_args,
-    echo=False,
-)
+if DATABASE_URL.startswith("sqlite"):
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+elif DATABASE_URL.startswith("postgresql"):
+    # Resilient connection pooling for cloud PostgreSQL (Neon, Supabase, Render, AWS RDS)
+    engine_kwargs["pool_size"] = 5
+    engine_kwargs["max_overflow"] = 10
+    engine_kwargs["pool_pre_ping"] = True
+    engine_kwargs["pool_recycle"] = 300
+
+engine = create_engine(DATABASE_URL, **engine_kwargs)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -74,4 +84,5 @@ def get_db():
 
 # Ensure tables are initialized when module is loaded in serverless environments
 init_db()
+
 

@@ -6,6 +6,7 @@ import {
   Info,
   AlertTriangle,
   Lock,
+  FileText,
 } from 'lucide-react';
 import {
   getAnalyticsSummary,
@@ -21,6 +22,8 @@ import {
 } from '../services/api';
 import ZenoxNav from '../components/ui/ZenoxNav';
 import SectionLabel from '../components/ui/SectionLabel';
+import { sanitizeCsvCell } from '../services/export/reportExporter';
+import { jsPDF } from 'jspdf';
 
 export const AuthorityDashboard: React.FC = () => {
   const [useDemoData, setUseDemoData] = useState<boolean>(true);
@@ -97,14 +100,116 @@ export const AuthorityDashboard: React.FC = () => {
       ['Observations represent crowdsourced automated consumer screenings under LM PCR 2011. Does not constitute official judicial finding.'],
     ];
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + rows.map((e) => e.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
-    const encodedUri = encodeURI(csvContent);
+    // Mitigate CSV Formula Injection across all cells
+    const csvContent = '\uFEFF' + rows.map((e) => e.map((cell) => sanitizeCsvCell(cell)).join(',')).join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `LMCC_Surveillance_Intelligence_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.href = url;
+    link.download = `LMCC_Surveillance_Intelligence_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPDF = () => {
+    if (!summary || !issues) return;
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 16;
+    const contentWidth = pageWidth - margin * 2;
+    let y = margin;
+
+    // Header Bar
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, pageWidth, 28, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text('LEGAL METROLOGY MARKET SURVEILLANCE AUDIT', margin, 12);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Department of Consumer Affairs • Rule 6 Packaging Surveillance Summary', margin, 18);
+    doc.text(`Generated: ${new Date().toLocaleString()}  |  Scope: ${summary.isDemonstrationData ? 'Pilot Reference Benchmark (1,420 Scans)' : 'Live Registry'}`, margin, 23);
+
+    y = 38;
+
+    // Key Stats Box
+    doc.setFillColor(241, 245, 249);
+    doc.rect(margin, y, contentWidth, 22, 'F');
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.text('SURVEILLANCE AGGREGATE SUMMARY', margin + 4, y + 6);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(`Total Screenings: ${summary.totalScans}    |    Compliant (PASS): ${summary.passCount}    |    Advisory Reviews: ${summary.reviewCount}`, margin + 4, y + 12);
+    doc.text(`Pass Rate: ${summary.passRate}%    |    Total Statutory Defects Identified: ${summary.totalIssues}`, margin + 4, y + 17);
+
+    y += 30;
+
+    // Defect Frequency Table
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('STATUTORY DEFECT FREQUENCY (RULE 6 DISTRIBUTION)', margin, y);
+    y += 5;
+
+    doc.setFillColor(226, 232, 240);
+    doc.rect(margin, y, contentWidth, 6, 'F');
+    doc.setFontSize(8);
+    doc.text('Statutory Declaration Field', margin + 3, y + 4.2);
+    doc.text('Gazette Rule Citation', margin + 90, y + 4.2);
+    doc.text('Identified Occurrences', margin + 140, y + 4.2);
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    for (const item of issues.items) {
+      doc.setDrawColor(226, 232, 240);
+      doc.line(margin, y + 6, margin + contentWidth, y + 6);
+      doc.setTextColor(30, 41, 59);
+      doc.text(item.field, margin + 3, y + 4.2);
+      doc.setTextColor(100, 116, 139);
+      doc.text(item.ruleReference, margin + 90, y + 4.2);
+      doc.setTextColor(30, 41, 59);
+      doc.text(`${item.count} (${item.percentage}%)`, margin + 140, y + 4.2);
+      y += 6;
+    }
+
+    y += 8;
+
+    // Category Breakdown Table
+    if (categories?.items && categories.items.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text('COMMODITY SECTOR BREAKDOWN', margin, y);
+      y += 5;
+
+      doc.setFillColor(226, 232, 240);
+      doc.rect(margin, y, contentWidth, 6, 'F');
+      doc.setFontSize(8);
+      doc.text('Sector Category', margin + 3, y + 4.2);
+      doc.text('Screenings', margin + 90, y + 4.2);
+      doc.text('Review Flags (Rate %)', margin + 140, y + 4.2);
+      y += 6;
+
+      doc.setFont('helvetica', 'normal');
+      for (const cat of categories.items) {
+        doc.setDrawColor(226, 232, 240);
+        doc.line(margin, y + 6, margin + contentWidth, y + 6);
+        doc.setTextColor(30, 41, 59);
+        doc.text(cat.category, margin + 3, y + 4.2);
+        doc.text(cat.screenings.toString(), margin + 90, y + 4.2);
+        doc.text(`${cat.reviewCount} (${cat.reviewRate}%)`, margin + 140, y + 4.2);
+        y += 6;
+      }
+    }
+
+    doc.save(`LMCC_Surveillance_Intelligence_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   const isDemo = summary?.isDemonstrationData ?? useDemoData;
@@ -167,17 +272,48 @@ export const AuthorityDashboard: React.FC = () => {
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             </button>
 
+            {/* Export PDF */}
+            <button
+              onClick={handleExportPDF}
+              disabled={loading || !summary}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs font-medium text-slate-200 transition cursor-pointer disabled:opacity-50"
+              title="Download Surveillance Intelligence Summary as PDF"
+            >
+              <FileText className="w-3.5 h-3.5 text-[#2ee6a6]" />
+              <span>Export PDF</span>
+            </button>
+
             {/* Export CSV */}
             <button
               onClick={handleExportCSV}
               disabled={loading || !summary}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs font-medium text-slate-200 transition cursor-pointer disabled:opacity-50"
+              title="Download Surveillance Intelligence Summary as CSV"
             >
               <Download className="w-3.5 h-3.5 text-slate-400" />
               <span>Export CSV</span>
             </button>
           </div>
         </div>
+
+        {/* Demo Mode Notice Banner */}
+        {isDemo && (
+          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>
+                <strong>Demonstration Reference Dataset Active (1,420 Scans):</strong> Demonstrating Rule 6 defect distribution across 5 FMCG categories. Switch to &ldquo;Live Registry&rdquo; to view real locally persisted inspection records.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUseDemoData(false)}
+              className="text-[11px] underline text-amber-300 hover:text-white font-medium shrink-0 cursor-pointer text-left"
+            >
+              Switch to Live Registry &rarr;
+            </button>
+          </div>
+        )}
 
         {/* Zero PII & Scope Notice */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

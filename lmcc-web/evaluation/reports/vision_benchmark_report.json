@@ -1,0 +1,55 @@
+{
+  "timestamp": "2026-10-23T19:46:39.451Z",
+  "totalCases": 5,
+  "fieldAccuracyPercent": 100,
+  "fallbackTriggerAccuracyPercent": 100,
+  "falsePassCount": 0,
+  "falsePassRatePercent": 0,
+  "cases": [
+    {
+      "id": "CASE_01_LOW_CONTRAST_DOT_MATRIX",
+      "category": "low_contrast",
+      "fallbackTriggered": true,
+      "verdictObserved": "PASS",
+      "verdictExpected": "PASS",
+      "latencyMs": 20,
+      "passedSafety": true
+    },
+    {
+      "id": "CASE_02_REFLECTIVE_FOIL_SNACK",
+      "category": "reflective_foil",
+      "fallbackTriggered": true,
+      "verdictObserved": "PASS",
+      "verdictExpected": "PASS",
+      "latencyMs": 3,
+      "passedSafety": true
+    },
+    {
+      "id": "CASE_03_CURVED_CYLINDRICAL_CAN",
+      "category": "curved_packaging",
+      "fallbackTriggered": true,
+      "verdictObserved": "PASS",
+      "verdictExpected": "PASS",
+      "latencyMs": 2,
+      "passedSafety": true
+    },
+    {
+      "id": "CASE_04_ILLEGAL_NON_COMPLIANT_LABEL",
+      "category": "non_compliant_adversarial",
+      "fallbackTriggered": true,
+      "verdictObserved": "REVIEW",
+      "verdictExpected": "REVIEW",
+      "latencyMs": 0,
+      "passedSafety": true
+    },
+    {
+      "id": "CASE_05_HELD_OUT_REAL_AMUL_MILK",
+      "category": "real_world_held_out",
+      "fallbackTriggered": false,
+      "verdictObserved": "PASS",
+      "verdictExpected": "PASS",
+      "latencyMs": 1,
+      "passedSafety": true
+    }
+  ]
+}
