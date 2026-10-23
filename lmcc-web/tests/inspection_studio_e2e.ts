@@ -26,7 +26,7 @@ try {
     await page.setViewport({ width, height: 1000 });
     await page.goto(`${base}/?intro=false`, { waitUntil: 'networkidle0' });
     await page.waitForSelector('.studio-canvas canvas');
-    assert.equal(await page.$eval('.studio-canvas', el => getComputedStyle(el).opacity), '1');
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('.studio-canvas')!).opacity === '1');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Overflow at ${width}`);
     assert.ok(await page.$eval('.studio-result', el => el.textContent?.includes('NEEDS REVIEW')));
     if (process.env.STUDIO_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.STUDIO_SCREENSHOT_DIR}/studio-${width}.png`, fullPage: true });
