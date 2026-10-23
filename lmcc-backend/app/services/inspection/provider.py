@@ -451,7 +451,7 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
 
     def __init__(self, api_key: str, model: Optional[str] = None):
         self.api_key = api_key.strip()
-        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
+        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-3.8-flash").strip()
         self.fallback = MockInspectionAiProvider()
 
     def _get_headers(self) -> Dict[str, str]:
@@ -464,23 +464,25 @@ class GeminiInspectionAiProvider(InspectionAiProvider):
         return f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
     async def _post_generate(self, client: httpx.AsyncClient, payload: dict) -> tuple[Optional[httpx.Response], str]:
-        """Posts generateContent with primary model, cascading to secondary flash model on 404."""
+        """Posts generateContent with primary model, cascading across available flash models on 404."""
         headers = self._get_headers()
         primary_model = self.model
-        url = self._get_url(primary_model)
-        resp = await client.post(url, json=payload, headers=headers)
-        if resp.status_code != 200:
-            logger.warning("Gemini primary model %s returned status %d: %s", primary_model, resp.status_code, resp.text[:400])
-        if resp.status_code == 404:
-            # If primary model is 404, cascade to gemini-flash-latest or gemini-2.5-flash
-            secondary_model = "gemini-flash-latest" if primary_model != "gemini-flash-latest" else "gemini-2.5-flash"
-            sec_url = self._get_url(secondary_model)
-            sec_resp = await client.post(sec_url, json=payload, headers=headers)
-            if sec_resp.status_code != 200:
-                logger.warning("Gemini secondary model %s returned status %d: %s", secondary_model, sec_resp.status_code, sec_resp.text[:400])
-            if sec_resp.status_code == 200:
-                return sec_resp, secondary_model
-        return resp, primary_model
+        candidates = [primary_model, "gemini-3.8-flash", "gemini-flash-latest", "gemini-3.7-flash"]
+        seen = set()
+        models_to_try = [m for m in candidates if m and not (m in seen or seen.add(m))]
+
+        last_resp = None
+        for cand in models_to_try:
+            url = self._get_url(cand)
+            resp = await client.post(url, json=payload, headers=headers)
+            last_resp = resp
+            if resp.status_code == 200:
+                return resp, cand
+            logger.warning("Gemini model %s returned status %d: %s", cand, resp.status_code, resp.text[:300])
+            if resp.status_code != 404:
+                break
+
+        return last_resp, primary_model
 
     async def generate_summary(
         self, request: InspectionSummaryRequest
@@ -673,7 +675,7 @@ def get_inspection_provider() -> InspectionAiProvider:
     provider_pref = (os.getenv("COPILOT_PROVIDER") or os.getenv("INSPECTION_AI_PROVIDER") or "").strip().lower()
 
     if gemini_key and provider_pref != "mock" and provider_pref != "local":
-        model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
         return GeminiInspectionAiProvider(api_key=gemini_key, model=model)
 
     return MockInspectionAiProvider()

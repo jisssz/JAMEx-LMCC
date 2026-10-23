@@ -198,7 +198,7 @@ class GeminiGroundedCopilot:
 
     def __init__(self, api_key: str, model: Optional[str] = None):
         self.api_key = api_key.strip()
-        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
+        self.model = (model or os.getenv("GEMINI_MODEL") or "gemini-3.8-flash").strip()
 
     def _get_headers(self) -> dict:
         return {
@@ -240,22 +240,26 @@ class GeminiGroundedCopilot:
         }
 
         headers = self._get_headers()
+        candidates = [self.model, "gemini-3.8-flash", "gemini-flash-latest", "gemini-3.7-flash"]
+        seen = set()
+        models_to_try = [m for m in candidates if m and not (m in seen or seen.add(m))]
+
+        resp = None
         used_model = self.model
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{used_model}:generateContent"
-
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            if resp.status_code == 404:
-                # Cascade to secondary flash model on 404
-                secondary_model = "gemini-flash-latest" if used_model != "gemini-flash-latest" else "gemini-2.5-flash"
-                sec_url = f"https://generativelanguage.googleapis.com/v1beta/models/{secondary_model}:generateContent"
-                sec_resp = await client.post(sec_url, json=payload, headers=headers)
-                if sec_resp.status_code == 200:
-                    resp = sec_resp
-                    used_model = secondary_model
+            for cand in models_to_try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{cand}:generateContent"
+                cand_resp = await client.post(url, json=payload, headers=headers)
+                resp = cand_resp
+                used_model = cand
+                if cand_resp.status_code == 200:
+                    break
+                logger.warning("Gemini copilot model %s returned status %d: %s", cand, cand_resp.status_code, cand_resp.text[:300])
+                if cand_resp.status_code != 404:
+                    break
 
-            if resp.status_code != 200:
-                raise Exception(f"Gemini API returned status {resp.status_code}: {resp.text}")
+            if not resp or resp.status_code != 200:
+                raise Exception(f"Gemini API returned status {resp.status_code if resp else 'none'}: {resp.text if resp else ''}")
 
             res_json = resp.json()
             raw_text = res_json["candidates"][0]["content"]["parts"][0]["text"]
@@ -299,7 +303,7 @@ async def process_copilot_query(request: CopilotQueryRequest) -> CopilotResponse
 
     if gemini_key and provider_type not in ["mock", "local"]:
         try:
-            model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+            model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
             copilot = GeminiGroundedCopilot(api_key=gemini_key, model=model)
             return await copilot.answer(request)
         except Exception as e:
