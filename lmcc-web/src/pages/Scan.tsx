@@ -24,6 +24,11 @@ import { ImageUpload } from "../components/ImageUpload";
 import { LanguageSelector } from "../components/LanguageSelector";
 import { useImage, PanelType } from "../context/ImageContext";
 import { BackgroundBeams } from "../components/ui/background-beams";
+import {
+  evaluateAndEnhancePackageImage,
+  ImageQualityEvaluation,
+} from "../services/image/imageQualityService";
+import { ImageQualityHud } from "../components/ui/ImageQualityHud";
 
 export const Scan: React.FC = () => {
   const navigate = useNavigate();
@@ -40,6 +45,7 @@ export const Scan: React.FC = () => {
 
   const initialMode = searchParams.get("mode") === "upload" ? "upload" : "camera";
   const [mode, setMode] = useState<"camera" | "upload">(initialMode);
+  const [latestQualityEval, setLatestQualityEval] = useState<ImageQualityEvaluation | null>(null);
 
   const panelOptions: { type: PanelType; code: string; short: string; label: string; desc: string }[] = [
     { type: "front", code: "01", short: "FRONT", label: "Front / Main Label", desc: "Brand, Commodity & Net Quantity" },
@@ -48,8 +54,16 @@ export const Scan: React.FC = () => {
     { type: "other", code: "04", short: "SIDE", label: "Side / Additional", desc: "Nutritional, Ingredients or Extra Panels" },
   ];
 
-  const handleSingleImageReady = (image: Blob | File) => {
+  const handleSingleImageReady = async (image: Blob | File) => {
     addPanel(image, currentPanelType);
+
+    // Assess quality and generate enhanced working copy in background
+    try {
+      const evaluation = await evaluateAndEnhancePackageImage(image);
+      setLatestQualityEval(evaluation);
+    } catch (err) {
+      console.warn("Quality evaluation skipped:", err);
+    }
 
     // Auto-advance to next logical panel type
     if (currentPanelType === "front") setCurrentPanelType("back");
@@ -57,8 +71,16 @@ export const Scan: React.FC = () => {
     else setCurrentPanelType("other");
   };
 
-  const handleMultipleImagesReady = (images: File[]) => {
+  const handleMultipleImagesReady = async (images: File[]) => {
     addPanels(images);
+    if (images.length > 0) {
+      try {
+        const evaluation = await evaluateAndEnhancePackageImage(images[0]);
+        setLatestQualityEval(evaluation);
+      } catch (err) {
+        console.warn("Quality evaluation skipped:", err);
+      }
+    }
   };
 
   const handleStartAnalysis = () => {
@@ -402,6 +424,15 @@ export const Scan: React.FC = () => {
                   <span>→</span>
                 </button>
               </div>
+            )}
+
+            {/* Real-time Quality Gate & Working Copy Enhancement HUD */}
+            {latestQualityEval && (
+              <ImageQualityHud
+                evaluation={latestQualityEval}
+                panelLabel={`Panel ${panels.length || 1}`}
+                className="w-full"
+              />
             )}
 
             {/* Bottom Multi-Image Advice Bar (Matching Reference) */}

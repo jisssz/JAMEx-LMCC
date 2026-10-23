@@ -12,17 +12,17 @@ import {
   Lock,
   BarChart3,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import ZenoxNav from '../components/ui/ZenoxNav';
 import HowItWorksModal from '../components/ui/HowItWorksModal';
-import { Spotlight } from '../components/ui/spotlight';
-import { BackgroundBeams } from '../components/ui/background-beams';
+import InspectionStudio from '../components/hero/InspectionStudio';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
   const [isHowItWorksOpen, setIsHowItWorksOpen] = React.useState(false);
 
   const statutoryRules = [
@@ -69,39 +69,31 @@ export const Home: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-violet-500 selection:text-white relative overflow-hidden">
-      {/* Restrained Aceternity Ambient Background Beams */}
-      <BackgroundBeams />
-
-      {/* Hero Spotlight */}
-      <Spotlight
-        className="-top-40 left-0 md:left-60 md:-top-20"
-        fill="#8b5cf6"
-      />
+    <div className="lmcc-home min-h-screen text-slate-100 flex flex-col justify-between selection:bg-violet-500 selection:text-white relative overflow-hidden">
 
       {/* Floating Zenox Navigation */}
       <ZenoxNav onOpenHowItWorks={() => setIsHowItWorksOpen(true)} />
 
       {/* Main Container */}
-      <main className="relative z-10 w-full max-w-6xl mx-auto px-5 sm:px-8 py-12 sm:py-20 space-y-28 sm:space-y-36">
+      <main className="relative z-10 w-full max-w-[1320px] mx-auto px-5 sm:px-8 py-12 sm:py-20 space-y-28 sm:space-y-36">
         {/* ==================================================== */}
         {/* HERO SECTION */}
         {/* ==================================================== */}
         <section className="relative pt-4 sm:pt-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-center">
+          <div className="studio-hero grid items-center">
             {/* Left Hero Column */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={reducedMotion ? false : { opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="lg:col-span-7 flex flex-col items-start text-left"
+              className="min-w-0 flex flex-col items-start text-left"
             >
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-medium mb-6">
                 <Sparkles className="w-3.5 h-3.5 text-violet-400" />
-                <span>Next-Gen Legal Metrology Surveillance</span>
+                <span>JAMEx-LMCC · Evidence-led inspection</span>
               </div>
 
-              <h1 className="hero-display text-white tracking-tight text-5xl sm:text-6xl lg:text-7xl font-normal leading-[1.05]">
+              <h1 className="studio-heading hero-display text-white tracking-tight font-normal leading-[1.05]">
                 Screen labels. <br />
                 Verify laws. <br />
                 <span className="font-display-italic text-transparent bg-clip-text bg-gradient-to-r from-violet-300 via-indigo-200 to-emerald-300">
@@ -110,7 +102,7 @@ export const Home: React.FC = () => {
               </h1>
 
               <p className="mt-6 text-base sm:text-lg text-slate-400 max-w-lg leading-relaxed font-sans font-normal">
-                Autonomous on-device legal screening for pre-packaged commodities. Validate mandatory Rule 6 statutory declarations directly in your browser.
+                From package to evidence. Extract label declarations, review uncertain details, and screen packaged commodities against deterministic Legal Metrology rules.
               </p>
 
               {/* Action Buttons */}
@@ -119,7 +111,7 @@ export const Home: React.FC = () => {
                   size="lg"
                   variant="default"
                   onClick={() => navigate('/scan')}
-                  className="rounded-full shadow-violet-600/30 gap-2.5 px-8"
+                  className="studio-primary rounded-full gap-2.5 px-8"
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>Start Live Scan</span>
@@ -151,65 +143,20 @@ export const Home: React.FC = () => {
               <div className="mt-10 flex flex-wrap items-center gap-6 text-xs text-slate-400 border-t border-white/[0.08] pt-6">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>100% Offline Capable</span>
+                  <span>On-device OCR</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Lock className="w-4 h-4 text-violet-400" />
-                  <span>Zero-PII Privacy</span>
+                  <span>Human review</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-cyan-400" />
-                  <span>LMR 2011 Verified</span>
+                  <span>Deterministic rules</span>
                 </div>
               </div>
             </motion.div>
 
-            {/* Right Hero Column: Interactive Floating Scan Card */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="lg:col-span-5 relative"
-            >
-              <div className="relative rounded-3xl p-6 bg-gradient-to-b from-[#0f1424] to-[#090d16] border border-white/[0.12] shadow-2xl backdrop-blur-2xl">
-                <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-xs font-semibold text-slate-200 font-sans">
-                      Screening Radar Live
-                    </span>
-                  </div>
-                  <Badge variant="pass">Rule 6 Verified</Badge>
-                </div>
-
-                <div className="my-5 space-y-3 font-sans text-xs">
-                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between">
-                    <span className="text-slate-400">MRP Declaration</span>
-                    <span className="text-emerald-400 font-mono font-medium">₹ 99.00 (Rule 6(1)(da))</span>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between">
-                    <span className="text-slate-400">Net Quantity</span>
-                    <span className="text-emerald-400 font-mono font-medium">250 g (Rule 6(1)(c))</span>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between">
-                    <span className="text-slate-400">Mfg / Packing Date</span>
-                    <span className="text-emerald-400 font-mono font-medium">PKD 08/2026</span>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between">
-                    <span className="text-slate-400">Consumer Care</span>
-                    <span className="text-emerald-400 font-mono font-medium">1800-200-1122</span>
-                  </div>
-                </div>
-
-                <Button
-                  variant="default"
-                  onClick={() => navigate('/scan')}
-                  className="w-full rounded-xl py-3 font-medium text-xs justify-center"
-                >
-                  Inspect a Package Now →
-                </Button>
-              </div>
-            </motion.div>
+            <InspectionStudio />
           </div>
         </section>
 
@@ -297,21 +244,21 @@ export const Home: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <Card className="p-7">
-              <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider block">Surveillance Volume</span>
-              <div className="font-display text-4xl text-white font-normal mt-2">1,420+</div>
-              <p className="text-xs text-slate-400 mt-2 font-sans">Pilot multi-district screenings across 5 commodity sectors.</p>
+              <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider block">Inspection Evidence</span>
+              <div className="font-display text-4xl text-white font-normal mt-2">Multi-panel</div>
+              <p className="text-xs text-slate-400 mt-2 font-sans">Combine declarations from multiple package photographs.</p>
             </Card>
 
             <Card className="p-7">
-              <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider block">Zero False PASS</span>
-              <div className="font-display text-4xl text-emerald-400 font-normal mt-2">100%</div>
-              <p className="text-xs text-slate-400 mt-2 font-sans">Deterministic enforcement. Missing declarations mandate review.</p>
+              <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider block">Rule Screening</span>
+              <div className="font-display text-4xl text-emerald-400 font-normal mt-2">Evidence-led</div>
+              <p className="text-xs text-slate-400 mt-2 font-sans">Uncertain or conflicting declarations are flagged for human review.</p>
             </Card>
 
             <Card className="p-7">
-              <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider block">Privacy by Design</span>
-              <div className="font-display text-4xl text-cyan-400 font-normal mt-2">Zero PII</div>
-              <p className="text-xs text-slate-400 mt-2 font-sans">Zero personal names, phone numbers, or facial data retained.</p>
+              <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider block">Inspection Records</span>
+              <div className="font-display text-4xl text-cyan-400 font-normal mt-2">Exportable</div>
+              <p className="text-xs text-slate-400 mt-2 font-sans">Review inspection history and export PDF or CSV reports.</p>
             </Card>
           </div>
         </section>

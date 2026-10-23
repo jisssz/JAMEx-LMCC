@@ -41,6 +41,8 @@ import { BackgroundBeams } from '../components/ui/background-beams';
 import { ComplianceCopilotSheet } from '../components/copilot/ComplianceCopilotSheet';
 import { HumanReviewModal } from '../components/review/HumanReviewModal';
 import { InspectionSummaryCard } from '../components/ai/InspectionSummaryCard';
+import { EvidenceComparisonCard } from '../components/ui/EvidenceComparisonCard';
+import { compareOriginalAndEnhancedOcr } from '../services/ocr/dualOcrComparator';
 
 export const Results: React.FC = () => {
   const location = useLocation();
@@ -100,6 +102,11 @@ export const Results: React.FC = () => {
   const [currentVerdict, setCurrentVerdict] = useState<Verdict>(verdict || ({} as Verdict));
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isHumanReviewOpen, setIsHumanReviewOpen] = useState(false);
+
+  const dualComparison = React.useMemo(() => {
+    const rawOcr = currentLabel.rawText || extractedLabel?.rawText || (multiPanelResult?.unifiedLabel?.rawText) || '';
+    return compareOriginalAndEnhancedOcr(rawOcr, rawOcr);
+  }, [currentLabel.rawText, extractedLabel?.rawText, multiPanelResult]);
 
   useEffect(() => {
     if (extractedLabel) setCurrentLabel(extractedLabel);
@@ -295,6 +302,14 @@ export const Results: React.FC = () => {
           extractedLabel={currentLabel}
           multiPanelResult={multiPanelResult}
           isMultiPanel={isMultiPanel}
+        />
+
+        {/* Feature 2: Evidence Preservation & Dual OCR Inspector */}
+        <EvidenceComparisonCard
+          comparison={dualComparison}
+          originalImageUrl={imagePreviewUrl || panelSnapshot[0]?.previewUrl}
+          enhancedImageUrl={imagePreviewUrl || panelSnapshot[0]?.previewUrl}
+          onOpenHumanReview={() => setIsHumanReviewOpen(true)}
         />
 
         {/* Multi-Panel Conflict Alert (if any) */}

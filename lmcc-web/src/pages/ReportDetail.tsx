@@ -28,6 +28,9 @@ import { registerSyncListener } from '../services/sync/reportSync';
 import SectionLabel from '../components/ui/SectionLabel';
 import { exportInspectionReportPdf, exportInspectionReportCsv } from '../services/export/reportExporter';
 import { ComplianceCopilotSheet } from '../components/copilot/ComplianceCopilotSheet';
+import { InspectionSummaryCard } from '../components/ai/InspectionSummaryCard';
+import { Verdict } from '../models/Verdict';
+import { ExtractedLabel } from '../models/ExtractedLabel';
 
 export const ReportDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -189,6 +192,47 @@ export const ReportDetail: React.FC = () => {
       return isoString;
     }
   };
+
+  const synthesizedVerdict = React.useMemo<Verdict | null>(() => {
+    if (!report) return null;
+    return {
+      overallStatus: (report.verdict === 'PASS' ? 'PASS' : 'REVIEW') as 'PASS' | 'REVIEW',
+      summary:
+        report.verdict === 'PASS'
+          ? 'All mandatory packaging declarations identified.'
+          : `${report.issueCount || (report.issues ? report.issues.length : 0)} statutory declaration(s) required manual verification.`,
+      timestamp: report.createdAt,
+      totalChecks: 5,
+      passedChecks: Math.max(0, 5 - (report.issues?.length || 0)),
+      flaggedChecks: report.issues?.length || 0,
+      checks: [],
+      potentialViolations: (report.issues || []).map((iss) => ({
+        ruleId: iss.ruleId,
+        field: iss.field,
+        title: iss.title,
+        severity: (iss.severity as any) || 'CRITICAL',
+        detectedValue: iss.detectedValue,
+        explanation: iss.explanation,
+        evidence: iss.evidence,
+        recommendation: iss.recommendation || '',
+        source: iss.source || 'Statutory Engine',
+        gazetteReference: iss.gazetteReference || 'Rule 6, Legal Metrology (Packaged Commodities) Rules, 2011',
+      })),
+    };
+  }, [report]);
+
+  const synthesizedLabel = React.useMemo<ExtractedLabel | null>(() => {
+    if (!report) return null;
+    return {
+      rawText: report.rawOcr || '',
+      productName: report.productName,
+      mrp: report.mrp,
+      netQuantity: report.netQuantity,
+      manufacturer: report.manufacturer,
+      packingDate: report.dateDeclaration,
+      consumerCare: report.consumerCare,
+    };
+  }, [report]);
 
   return (
     <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-16">
@@ -440,6 +484,15 @@ export const ReportDetail: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* AI Statutory Inspection Summary */}
+            {synthesizedVerdict && synthesizedLabel && (
+              <InspectionSummaryCard
+                verdict={synthesizedVerdict}
+                extractedLabel={synthesizedLabel}
+                className="mt-4"
+              />
+            )}
 
             {/* 3b. Transparent 4-Stage Lifecycle Timeline */}
             <div className="bg-[#090d16] p-5 rounded-2xl border border-white/[0.08] space-y-4">
