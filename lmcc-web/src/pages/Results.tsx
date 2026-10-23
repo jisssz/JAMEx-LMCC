@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import confetti from 'canvas-confetti';
 import {
   RotateCcw,
   CheckCircle2,
@@ -21,6 +22,7 @@ import {
   Plus,
   Download,
   FileText,
+  ArrowRight,
 } from 'lucide-react';
 import { ExtractedLabel } from '../models/ExtractedLabel';
 import { Verdict } from '../models/Verdict';
@@ -29,8 +31,9 @@ import { BarcodeCrossCheckResult } from '../services/barcode/barcodeCrossCheck';
 import { useImage } from '../context/ImageContext';
 import { VerdictCard } from '../components/VerdictCard';
 import { ViolationCard } from '../components/ViolationCard';
-import GlowBackground from '../components/ui/GlowBackground';
 import { exportInspectionReportPdf, exportInspectionReportCsv } from '../services/export/reportExporter';
+import { Button } from '../components/ui/button';
+import { BackgroundBeams } from '../components/ui/background-beams';
 
 export const Results: React.FC = () => {
   const location = useLocation();
@@ -88,8 +91,8 @@ export const Results: React.FC = () => {
   // Empty / Failure State Handling
   if (!extractedLabel || !verdict) {
     return (
-      <div className="min-h-screen bg-[#06080e] text-white flex flex-col items-center justify-center p-6 text-center selection:bg-emerald-500 font-sans">
-        <GlowBackground variant="subtle" />
+      <div className="min-h-screen bg-[#06080e] text-white flex flex-col items-center justify-center p-6 text-center selection:bg-emerald-500 font-sans relative overflow-hidden">
+        <BackgroundBeams />
         <div className="relative z-10 w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.08] text-slate-400 flex items-center justify-center mb-4">
           <AlertCircle className="w-7 h-7" />
         </div>
@@ -109,6 +112,21 @@ export const Results: React.FC = () => {
       </div>
     );
   }
+
+  useEffect(() => {
+    if (verdict?.overallStatus === 'PASS') {
+      try {
+        confetti({
+          particleCount: 60,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#10b981', '#34d399', '#8b5cf6', '#38bdf8'],
+        });
+      } catch {
+        // Safe fallback if canvas not available
+      }
+    }
+  }, [verdict?.overallStatus]);
 
   const handleCopyRaw = () => {
     navigator.clipboard.writeText(extractedLabel.rawText);
@@ -163,8 +181,8 @@ export const Results: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-12 selection:bg-emerald-500 selection:text-black font-sans">
-      <GlowBackground variant="subtle" />
+    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-12 selection:bg-emerald-500 selection:text-black font-sans relative overflow-hidden">
+      <BackgroundBeams />
 
       {/* Floating Top Header */}
       <header className="sticky top-4 sm:top-6 z-40 max-w-4xl w-full mx-auto px-4">
@@ -571,9 +589,10 @@ export const Results: React.FC = () => {
 
         {/* Primary Action Buttons */}
         {/* Action Buttons & Exports */}
-        <div className="pt-2 flex flex-col sm:flex-row gap-3">
-          <button
-            type="button"
+        <div className="pt-2 flex flex-wrap items-center gap-3">
+          <Button
+            size="lg"
+            variant="default"
             onClick={() =>
               navigate('/report', {
                 state: {
@@ -584,13 +603,15 @@ export const Results: React.FC = () => {
                 },
               })
             }
-            className="flex-1 py-3.5 px-6 rounded-full font-semibold text-xs bg-white text-slate-950 hover:bg-slate-100 transition active:scale-95 cursor-pointer font-sans shadow-lg text-center"
+            className="flex-1 rounded-xl text-xs font-semibold shadow-lg text-center gap-2"
           >
-            {verdict.overallStatus === 'PASS' ? 'File voluntary packaging observation →' : 'Report potential declaration issue →'}
-          </button>
+            <span>{verdict.overallStatus === 'PASS' ? 'File Voluntary Packaging Observation' : 'Report Potential Declaration Issue'}</span>
+            <ArrowRight className="w-4 h-4" />
+          </Button>
 
-          <button
-            type="button"
+          <Button
+            size="lg"
+            variant="glass"
             onClick={() => {
               exportInspectionReportPdf({
                 reportId: `INSP-${Date.now().toString(36).toUpperCase()}`,
@@ -600,15 +621,16 @@ export const Results: React.FC = () => {
                 productName: extractedLabel.productName || 'Scanned Package',
               });
             }}
-            className="flex items-center justify-center gap-1.5 py-3.5 px-5 rounded-full font-medium text-xs bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border border-white/[0.08] transition cursor-pointer font-sans"
+            className="rounded-xl gap-2 text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
             title="Download vector PDF inspection report with Gazette citations"
           >
-            <FileText className="w-3.5 h-3.5 text-[#2ee6a6]" />
+            <FileText className="w-4 h-4 text-emerald-400" />
             <span>Export PDF</span>
-          </button>
+          </Button>
 
-          <button
-            type="button"
+          <Button
+            size="lg"
+            variant="outline"
             onClick={() => {
               exportInspectionReportCsv({
                 reportId: `INSP-${Date.now().toString(36).toUpperCase()}`,
@@ -618,20 +640,21 @@ export const Results: React.FC = () => {
                 productName: extractedLabel.productName || 'Scanned Package',
               });
             }}
-            className="flex items-center justify-center gap-1.5 py-3.5 px-5 rounded-full font-medium text-xs bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border border-white/[0.08] transition cursor-pointer font-sans"
+            className="rounded-xl gap-2 text-xs"
             title="Download sanitized CSV inspection report"
           >
-            <Download className="w-3.5 h-3.5 text-slate-300" />
+            <Download className="w-4 h-4 text-slate-300" />
             <span>Export CSV</span>
-          </button>
+          </Button>
 
-          <button
-            type="button"
+          <Button
+            size="lg"
+            variant="ghost"
             onClick={() => navigate('/scan')}
-            className="py-3.5 px-5 rounded-full font-medium text-xs bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 border border-white/[0.08] transition cursor-pointer font-sans text-center"
+            className="rounded-xl text-xs text-slate-400 hover:text-white"
           >
             Scan another
-          </button>
+          </Button>
         </div>
       </main>
 

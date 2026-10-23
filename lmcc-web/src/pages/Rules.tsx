@@ -1,8 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import ZenoxNav from '../components/ui/ZenoxNav';
-import GlowBackground from '../components/ui/GlowBackground';
-import SectionLabel from '../components/ui/SectionLabel';
+import { BackgroundBeams } from '../components/ui/background-beams';
+import { Badge } from '../components/ui/badge';
+import { Card } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Scale, CheckCircle2, Sparkles, ArrowRight } from 'lucide-react';
 
 export const Rules: React.FC = () => {
   const navigate = useNavigate();
@@ -76,14 +79,17 @@ export const Rules: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-black">
-      <GlowBackground variant="subtle" />
+    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-black relative overflow-hidden">
+      <BackgroundBeams />
       <ZenoxNav />
 
       <main className="relative z-10 w-full max-w-4xl mx-auto px-5 sm:px-8 py-12 sm:py-20 space-y-16">
         {/* Editorial Header */}
         <div className="space-y-4 pt-4">
-          <SectionLabel>Legal Metrology Gazette Reference</SectionLabel>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-medium">
+            <Scale className="w-3.5 h-3.5" />
+            <span>Legal Metrology Gazette Reference</span>
+          </div>
           <h1 className="hero-display text-white tracking-tight">
             Statutory <br />
             <span className="font-display-italic text-slate-300">declarations.</span>
@@ -94,59 +100,59 @@ export const Rules: React.FC = () => {
         </div>
 
         {/* Gazette Criteria List */}
-        <div className="space-y-12 divide-y divide-white/[0.08]">
+        <div className="space-y-6">
           {rulesData.map((rule) => (
-            <div key={rule.num} className="pt-12 first:pt-0 space-y-6">
-              <div className="flex items-baseline justify-between">
-                <span className="text-xs font-mono text-emerald-400 block">{rule.num}</span>
-                <span className="text-xs font-mono text-slate-500">{rule.citation}</span>
+            <Card key={rule.num} className="p-6 sm:p-8 space-y-5 border-white/[0.08] hover:border-emerald-500/30 transition-all">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs font-mono text-emerald-400 font-bold">§ {rule.num}</span>
+                  <Badge variant="pass" className="text-[11px] font-mono">{rule.rule}</Badge>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-mono text-slate-400">{rule.citation}</Badge>
               </div>
 
               <div>
-                <h2 className="text-2xl sm:text-3xl font-display text-white font-normal tracking-tight">
+                <h2 className="text-xl sm:text-2xl font-semibold text-white tracking-tight font-sans">
                   {rule.title}
                 </h2>
-                <span className="text-xs font-mono text-emerald-400 mt-1 block">
-                  {rule.rule}
-                </span>
+                <p className="text-xs sm:text-sm text-slate-400 mt-2 leading-relaxed">
+                  {rule.summary}
+                </p>
               </div>
 
-              <p className="text-sm text-slate-300 font-sans leading-relaxed">
-                {rule.summary}
-              </p>
-
-              <div className="bg-[#090d16] rounded-2xl p-5 border border-white/[0.06] space-y-3">
-                <span className="text-[11px] font-sans font-medium uppercase tracking-wider text-slate-400 block">
-                  Screening Verification Checklist
-                </span>
-                <ul className="space-y-2 text-xs font-sans text-slate-400">
-                  {rule.criteria.map((c, idx) => (
-                    <li key={idx} className="flex items-start gap-2.5">
-                      <span className="text-emerald-400 mt-0.5">•</span>
+              <div className="pt-4 border-t border-white/[0.06] space-y-2">
+                <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider block">Compliance Audit Criteria</span>
+                <ul className="space-y-1.5 text-xs text-slate-300 font-sans">
+                  {rule.criteria.map((c, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
                       <span>{c}</span>
                     </li>
                   ))}
                 </ul>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
 
         {/* Bottom Call to Action */}
-        <div className="rounded-3xl bg-[#090d16] border border-white/[0.08] p-10 sm:p-14 text-center shadow-xl space-y-5">
-          <h2 className="section-display text-white tracking-tight">
-            Ready to test a product against <span className="font-display-italic text-slate-300">these rules?</span>
+        <div className="rounded-3xl bg-gradient-to-r from-emerald-950/30 via-[#0c101d] to-violet-950/30 border border-emerald-500/20 p-8 sm:p-12 text-center shadow-xl space-y-5">
+          <h2 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight">
+            Ready to test packaging against <span className="font-display-italic text-emerald-300">these rules?</span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto font-sans leading-relaxed">
             Upload or photograph package panels to screen compliance against all Rule 6 statutory requirements.
           </p>
-          <button
-            type="button"
+          <Button
+            size="lg"
+            variant="default"
             onClick={() => navigate('/scan')}
-            className="px-7 py-3 rounded-full font-medium text-xs bg-white text-slate-950 hover:bg-slate-100 transition-all duration-200 active:scale-95 cursor-pointer font-sans"
+            className="rounded-full px-8 gap-2"
           >
-            Launch scanner →
-          </button>
+            <Sparkles className="w-4 h-4" />
+            <span>Open Package Scanner</span>
+            <ArrowRight className="w-4 h-4" />
+          </Button>
         </div>
       </main>
 

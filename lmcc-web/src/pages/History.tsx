@@ -15,7 +15,7 @@ import {
 import { getReports } from '../services/api';
 import { getLocalReports, LocalReport, getReportLifecycleState, ReportLifecycleState } from '../services/storage/localReports';
 import { syncPendingReports, registerSyncListener, isReportSyncing } from '../services/sync/reportSync';
-import GlowBackground from '../components/ui/GlowBackground';
+import { BackgroundBeams } from '../components/ui/background-beams';
 
 interface HistoryItem {
   id: string; // server ID or localId
@@ -234,8 +234,8 @@ export const History: React.FC = () => {
   const reviewCount = items.filter((i) => i.verdict === 'REVIEW').length;
 
   return (
-    <div className="min-h-screen bg-[#05070b] text-slate-100 flex flex-col justify-between pb-12 selection:bg-emerald-500 selection:text-black">
-      <GlowBackground variant="subtle" />
+    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-12 selection:bg-emerald-500 selection:text-black relative overflow-hidden">
+      <BackgroundBeams />
 
       {/* Top Floating Header */}
       <header className="sticky top-3 sm:top-5 z-40 max-w-4xl w-full mx-auto px-4">

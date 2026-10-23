@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Scale, Menu, X, ChevronRight } from 'lucide-react';
+import { Scale, Menu, X, ChevronRight, Sparkles } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Badge } from './badge';
+import { Button } from './button';
 
 interface ZenoxNavProps {
   onOpenHowItWorks?: () => void;
@@ -11,109 +14,127 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const scrollToSection = (id: string) => {
+  const navLinks = [
+    { label: 'Home', path: '/' },
+    { label: 'How it works', action: 'how-it-works' },
+    { label: 'Rules', path: '/rules' },
+    { label: 'History', path: '/history' },
+    { label: 'Surveillance', path: '/authority-dashboard' },
+  ];
+
+  const handleNavClick = (link: typeof navLinks[0]) => {
     setMobileMenuOpen(false);
-    if (location.pathname !== '/') {
-      navigate(`/#${id}`);
+    if (link.action === 'how-it-works') {
+      if (onOpenHowItWorks) {
+        onOpenHowItWorks();
+      } else {
+        if (location.pathname !== '/') {
+          navigate('/#how-it-works');
+        } else {
+          const el = document.getElementById('how-it-works');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
       return;
     }
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
+    if (link.path) {
+      navigate(link.path);
     }
   };
 
+  const isActive = (path?: string) => {
+    if (!path) return false;
+    if (path === '/') return location.pathname === '/';
+    if (path === '/authority-dashboard') {
+      return (
+        location.pathname === '/authority-dashboard' ||
+        location.pathname === '/authority' ||
+        location.pathname === '/dashboard'
+      );
+    }
+    return location.pathname.startsWith(path);
+  };
+
   return (
-    <header className="sticky top-4 sm:top-6 z-50 w-full px-4 sm:px-6 max-w-5xl mx-auto">
-      <nav className="relative flex items-center justify-between px-5 sm:px-7 py-3 rounded-full bg-[#080c16]/85 border border-white/[0.08] backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
+    <header className="sticky top-4 sm:top-6 z-50 w-full px-4 sm:px-6 max-w-6xl mx-auto">
+      <nav className="relative flex items-center justify-between px-5 sm:px-7 py-3 rounded-full bg-[#080c16]/90 border border-white/[0.08] backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-all">
         {/* Brand */}
         <div
           onClick={() => navigate('/')}
-          className="flex items-center gap-2.5 cursor-pointer group"
+          className="flex items-center gap-3 cursor-pointer group"
         >
-          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:border-emerald-400/40 transition">
-            <Scale className="w-3.5 h-3.5" />
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500/20 via-violet-500/20 to-transparent border border-white/10 flex items-center justify-center text-emerald-400 group-hover:border-emerald-400/50 group-hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
+            <Scale className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-bold tracking-tight text-white font-sans">LMCC</span>
-            <span className="hidden sm:inline text-xs font-display-italic text-slate-400">
-              Legal Metrology
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold tracking-tight text-white font-sans">JAMEx</span>
+              <Badge variant="pass" className="text-[10px] px-1.5 py-0 uppercase">
+                LMCC
+              </Badge>
+            </div>
+            <span className="hidden sm:inline text-[11px] font-sans text-slate-400 -mt-0.5">
+              Legal Metrology Compliance
             </span>
           </div>
         </div>
 
         {/* Desktop Menu Links */}
-        <div className="hidden md:flex items-center gap-7 text-xs font-sans font-medium text-slate-300">
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="hover:text-white transition cursor-pointer"
-          >
-            Home
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (onOpenHowItWorks) {
-                onOpenHowItWorks();
-              } else {
-                scrollToSection('how-it-works');
-              }
-            }}
-            className="hover:text-white transition cursor-pointer"
-          >
-            How it works
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/rules')}
-            className="hover:text-white transition cursor-pointer"
-          >
-            Rules
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/history')}
-            className="hover:text-white transition cursor-pointer"
-          >
-            History
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/authority-dashboard')}
-            className="hover:text-white transition cursor-pointer text-slate-300 hover:text-emerald-300"
-          >
-            Analytics
-          </button>
+        <div className="hidden md:flex items-center gap-1 bg-white/[0.03] p-1 rounded-full border border-white/[0.05]">
+          {navLinks.map((link) => {
+            const active = isActive(link.path);
+            return (
+              <button
+                key={link.label}
+                type="button"
+                onClick={() => handleNavClick(link)}
+                className={`relative px-4 py-1.5 text-xs font-sans font-medium transition-colors cursor-pointer rounded-full ${
+                  active ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {active && (
+                  <motion.div
+                    layoutId="nav-active-pill"
+                    className="absolute inset-0 bg-white/[0.1] border border-white/[0.12] rounded-full shadow-sm"
+                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10">{link.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Desktop Right CTA */}
         <div className="hidden md:flex items-center gap-3">
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="glass"
             onClick={() => navigate('/scan')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold bg-white text-slate-950 hover:bg-slate-100 hover:shadow-[0_0_25px_rgba(255,255,255,0.25)] transition-all duration-200 active:scale-95 cursor-pointer font-sans"
+            className="rounded-full px-5 text-xs font-semibold gap-2 border-emerald-500/30 hover:border-emerald-500/60 hover:bg-emerald-500/10 text-white"
           >
-            <span>Scan product</span>
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Scan Product</span>
             <span className="text-slate-400 font-normal">→</span>
-          </button>
+          </Button>
         </div>
 
         {/* Mobile Hamburger Button */}
         <div className="flex items-center gap-2 md:hidden">
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="glass"
             onClick={() => navigate('/scan')}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-white text-slate-950 font-sans"
+            className="rounded-full px-3 py-1 text-xs font-semibold gap-1"
           >
             <span>Scan</span>
             <span>→</span>
-          </button>
+          </Button>
 
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-1.5 rounded-full text-slate-300 hover:text-white bg-white/5 border border-white/10"
+            className="p-2 rounded-full text-slate-300 hover:text-white bg-white/5 border border-white/10 transition-colors"
             aria-label="Toggle navigation menu"
           >
             {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -122,82 +143,50 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
       </nav>
 
       {/* Mobile Drawer Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden mt-2 p-5 rounded-3xl bg-[#090d16]/95 border border-white/[0.08] backdrop-blur-3xl shadow-2xl space-y-2 text-sm font-sans">
-          <button
-            type="button"
-            onClick={() => {
-              setMobileMenuOpen(false);
-              navigate('/');
-            }}
-            className="w-full text-left py-2.5 px-3 rounded-xl hover:bg-white/5 text-slate-200 flex items-center justify-between"
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            transition={{ duration: 0.2 }}
+            className="md:hidden mt-2 p-5 rounded-3xl bg-[#090d16]/95 border border-white/[0.08] backdrop-blur-3xl shadow-2xl space-y-2 text-sm font-sans"
           >
-            <span>Home</span>
-            <ChevronRight className="w-4 h-4 text-slate-500" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMobileMenuOpen(false);
-              if (onOpenHowItWorks) {
-                onOpenHowItWorks();
-              } else {
-                scrollToSection('how-it-works');
-              }
-            }}
-            className="w-full text-left py-2.5 px-3 rounded-xl hover:bg-white/5 text-slate-200 flex items-center justify-between"
-          >
-            <span>How it works</span>
-            <ChevronRight className="w-4 h-4 text-slate-500" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMobileMenuOpen(false);
-              scrollToSection('what-we-check');
-            }}
-            className="w-full text-left py-2.5 px-3 rounded-xl hover:bg-white/5 text-slate-200 flex items-center justify-between"
-          >
-            <span>Rules</span>
-            <ChevronRight className="w-4 h-4 text-slate-500" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMobileMenuOpen(false);
-              navigate('/history');
-            }}
-            className="w-full text-left py-2.5 px-3 rounded-xl hover:bg-white/5 text-slate-200 flex items-center justify-between"
-          >
-            <span>History</span>
-            <ChevronRight className="w-4 h-4 text-slate-500" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMobileMenuOpen(false);
-              navigate('/authority-dashboard');
-            }}
-            className="w-full text-left py-2.5 px-3 rounded-xl hover:bg-white/5 text-slate-200 flex items-center justify-between"
-          >
-            <span>Analytics</span>
-            <ChevronRight className="w-4 h-4 text-slate-500" />
-          </button>
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                navigate('/scan');
-              }}
-              className="w-full py-3 px-4 rounded-full font-semibold text-xs bg-white text-slate-950 flex items-center justify-center gap-2 shadow-lg"
-            >
-              <span>Scan product</span>
-              <span>→</span>
-            </button>
-          </div>
-        </div>
-      )}
+            {navLinks.map((link) => {
+              const active = isActive(link.path);
+              return (
+                <button
+                  key={link.label}
+                  type="button"
+                  onClick={() => handleNavClick(link)}
+                  className={`w-full text-left py-2.5 px-3 rounded-xl transition-all flex items-center justify-between ${
+                    active
+                      ? 'bg-white/10 text-white font-semibold'
+                      : 'hover:bg-white/5 text-slate-300'
+                  }`}
+                >
+                  <span>{link.label}</span>
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </button>
+              );
+            })}
+            <div className="pt-2">
+              <Button
+                variant="default"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  navigate('/scan');
+                }}
+                className="w-full py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Start Product Inspection</span>
+                <span>→</span>
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 };

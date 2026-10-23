@@ -23,7 +23,7 @@ import { CameraCapture } from "../components/CameraCapture";
 import { ImageUpload } from "../components/ImageUpload";
 import { LanguageSelector } from "../components/LanguageSelector";
 import { useImage, PanelType } from "../context/ImageContext";
-import GlowBackground from "../components/ui/GlowBackground";
+import { BackgroundBeams } from "../components/ui/background-beams";
 
 export const Scan: React.FC = () => {
   const navigate = useNavigate();
@@ -67,8 +67,8 @@ export const Scan: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#05070b] text-slate-100 flex flex-col justify-between selection:bg-[#2ee6a6] selection:text-black relative overflow-x-hidden">
-      <GlowBackground variant="subtle" />
+    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-[#2ee6a6] selection:text-black relative overflow-x-hidden">
+      <BackgroundBeams />
 
       {/* Environmental Botanical Leaves on Left Margin - matching reference */}
       <div className="absolute -left-10 sm:-left-12 top-0 bottom-0 w-36 sm:w-44 pointer-events-none -z-10 opacity-60 overflow-hidden hidden md:block">
