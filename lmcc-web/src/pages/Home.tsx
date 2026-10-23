@@ -75,7 +75,7 @@ export const Home: React.FC = () => {
       <ZenoxNav onOpenHowItWorks={() => setIsHowItWorksOpen(true)} />
 
       {/* Main Container */}
-      <main className="relative z-10 w-full max-w-[1320px] mx-auto px-5 sm:px-8 py-12 sm:py-20 space-y-28 sm:space-y-36">
+      <main className="relative z-10 w-full max-w-[1440px] mx-auto px-5 sm:px-8 pt-12 pb-12 sm:pt-20 sm:pb-20 space-y-28 sm:space-y-36">
         {/* ==================================================== */}
         {/* HERO SECTION */}
         {/* ==================================================== */}
@@ -163,7 +163,14 @@ export const Home: React.FC = () => {
         {/* ==================================================== */}
         {/* STATUTORY RULES — ACETERNITY BENTO GRID */}
         {/* ==================================================== */}
-        <section id="what-we-check" className="space-y-8 scroll-mt-24">
+        <motion.section
+          id="what-we-check"
+          initial={reducedMotion ? false : { opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.18 }}
+          transition={{ duration: 0.55, ease: 'easeOut' }}
+          className="space-y-8 scroll-mt-24"
+        >
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-1.5 text-xs font-mono text-emerald-400 uppercase tracking-wider mb-2">
@@ -213,12 +220,18 @@ export const Home: React.FC = () => {
               </Card>
             ))}
           </div>
-        </section>
+        </motion.section>
 
         {/* ==================================================== */}
         {/* MARKET SURVEILLANCE TELEMETRY */}
         {/* ==================================================== */}
-        <section className="border-t border-white/[0.08] pt-12 space-y-10">
+        <motion.section
+          initial={reducedMotion ? false : { opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.18 }}
+          transition={{ duration: 0.55, ease: 'easeOut' }}
+          className="border-t border-white/[0.08] pt-12 space-y-10"
+        >
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
               <div className="text-xs font-mono text-violet-400 uppercase tracking-wider mb-2">
@@ -261,12 +274,18 @@ export const Home: React.FC = () => {
               <p className="text-xs text-slate-400 mt-2 font-sans">Review inspection history and export PDF or CSV reports.</p>
             </Card>
           </div>
-        </section>
+        </motion.section>
 
         {/* ==================================================== */}
         {/* SCANNER CALL TO ACTION */}
         {/* ==================================================== */}
-        <section className="relative rounded-3xl bg-gradient-to-r from-violet-950/40 via-[#0c101d] to-indigo-950/40 border border-violet-500/20 p-10 sm:p-16 text-center shadow-2xl overflow-hidden">
+        <motion.section
+          initial={reducedMotion ? false : { opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.18 }}
+          transition={{ duration: 0.55, ease: 'easeOut' }}
+          className="relative rounded-3xl bg-gradient-to-r from-violet-950/40 via-[#0c101d] to-indigo-950/40 border border-violet-500/20 p-10 sm:p-16 text-center shadow-2xl overflow-hidden"
+        >
           <div className="absolute inset-0 bg-radial-gradient from-violet-600/10 to-transparent pointer-events-none" />
           <div className="max-w-xl mx-auto flex flex-col items-center space-y-6 relative z-10">
             <h2 className="section-display text-white text-3xl sm:text-4xl font-normal tracking-tight">
@@ -300,7 +319,7 @@ export const Home: React.FC = () => {
               </Button>
             </div>
           </div>
-        </section>
+        </motion.section>
 
         {/* ==================================================== */}
         {/* LEGAL NOTICE */}

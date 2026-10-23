@@ -111,7 +111,7 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
             size="sm"
             variant="glass"
             onClick={() => navigate('/scan')}
-            className="rounded-full px-5 text-xs font-semibold gap-2 border-emerald-500/30 hover:border-emerald-500/60 hover:bg-emerald-500/10 text-white"
+            className="jamex-scan-cta rounded-full px-5 text-xs font-semibold gap-2 border-emerald-500/30 hover:border-emerald-500/60 hover:bg-emerald-500/10 text-white"
           >
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
             <span>Scan Product</span>
