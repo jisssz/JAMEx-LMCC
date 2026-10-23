@@ -54,3 +54,5 @@ yarn-error.log*
 /*.png
 login intro/
 How it works/
+.vercel
+.env*
