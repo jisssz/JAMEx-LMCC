@@ -129,39 +129,31 @@ async def inspection_diagnostic():
         else:
             err_msg = resp.text[:500]
 
-        # Also test a minimal 1-token generateContent request with configured model
-        gen_status = None
-        gen_err = None
-        test_url = f"https://generativelanguage.googleapis.com/v1beta/models/{configured_model}:generateContent"
-        try:
-            gen_resp = await client.post(
-                test_url,
-                headers=headers,
-                json={"contents": [{"parts": [{"text": "ping"}]}]},
-            )
-            gen_status = gen_resp.status_code
-            if gen_status != 200:
-                gen_err = gen_resp.text[:500]
-        except Exception as e:
-            gen_err = str(e)
-
-        # Test structured inspection summary generation via provider
-        summary_provider = None
-        summary_is_ai = False
-        summary_error = None
-        try:
-            diag_req = InspectionSummaryRequest(
-                product_name="Diagnostic Organic Flour 1kg",
-                verdict="REVIEW",
-                extracted_declarations={"net_quantity": "1 kg"},
-                flagged_rules=["LM-PCR-2011-R6-1-C"],
-                potential_violations=[{"field": "net_quantity", "issue": "Diagnostic check"}],
-            )
-            diag_res = await generate_inspection_summary(diag_req)
-            summary_provider = diag_res.provider_used
-            summary_is_ai = diag_res.is_ai_generated
-        except Exception as e:
-            summary_error = str(e)
+        # Test active flash models for real-time availability
+        test_models = [
+            "gemini-flash-lite-latest",
+            "gemini-2.5-flash-lite",
+            "gemini-3.5-flash-lite",
+            "gemini-3.7-flash",
+            "gemini-3.8-flash",
+            "gemini-flash-latest",
+        ]
+        model_availability = {}
+        for tm in test_models:
+            t_url = f"https://generativelanguage.googleapis.com/v1beta/models/{tm}:generateContent"
+            try:
+                t_resp = await client.post(
+                    t_url,
+                    headers=headers,
+                    json={"contents": [{"parts": [{"text": "ping"}]}]},
+                    timeout=3.5,
+                )
+                model_availability[tm] = {
+                    "status": t_resp.status_code,
+                    "result": "OK" if t_resp.status_code == 200 else t_resp.text[:120],
+                }
+            except Exception as e:
+                model_availability[tm] = {"status": "timeout", "result": str(e)}
 
         return {
             "gemini_key_configured": True,
@@ -169,11 +161,5 @@ async def inspection_diagnostic():
             "configured_model": configured_model,
             "models_endpoint_status": resp.status_code,
             "available_models_count": len(models_data),
-            "available_models_sample": [m for m in models_data if "gemini" in m],
-            "models_endpoint_error": err_msg,
-            "generate_content_test_status": gen_status,
-            "generate_content_error": gen_err,
-            "summary_provider_used": summary_provider,
-            "summary_is_ai_generated": summary_is_ai,
-            "summary_error": summary_error,
+            "model_availability": model_availability,
         }
