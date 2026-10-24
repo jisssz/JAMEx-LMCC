@@ -109,17 +109,15 @@
 .studio-package { position: absolute; z-index: 3; inset: 0; pointer-events: none; }
 .studio-canvas { width: 100%; height: 100%; transition: opacity .5s; }
 .studio-canvas canvas { display: block; width: 100%; height: 100%; }
-.studio-static-package {
-  position: absolute; width: 245px; height: 410px; top: 28px; left: calc(50% - 122px);
-  padding: 36px 14px 24px; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-  color: #56320b; text-align: center; background: linear-gradient(90deg,#a76805,#ffcf12 16%,#ffe443 42%,#ffc20d 70%,#ac6905);
-  border-radius: 42% 42% 8% 8% / 5% 5% 3% 3%; border-block: 9px dashed #9f650b;
-  transform: rotate(-2deg); box-shadow: 20px 34px 42px #0008, inset 12px 0 18px #fff5, inset -12px 0 16px #5e330933;
+.studio-static-image {
+  position: absolute; z-index: 1; top: 2%; left: 31%; width: 38%; height: 96%; object-fit: contain;
+  filter: drop-shadow(0 18px 24px #0008) drop-shadow(0 0 28px #ffb91c33);
+  transition: opacity .35s ease;
 }
-.studio-static-package small { font-size: 7px; font-weight: 700; letter-spacing: .08em; }
-.studio-static-package strong { font: 600 25px Arial,sans-serif; }
-.studio-static-package .static-lays { padding: 10px 20px; color: white; background: #d92722; border: 4px solid #fff4c1; border-radius: 50%; font: italic 900 41px Arial,sans-serif; }
-.studio-static-package span { font-size: 10px; font-weight: 700; }
+.studio-image-error {
+  position: absolute; z-index: 1; top: 30%; left: 36%; width: 28%; padding: 20px 12px; border: 1px solid #ffffff28;
+  border-radius: 12px; color: #c6bfce; background: #110e18; text-align: center; font-size: 12px;
+}
 .studio-scanner {
   position: absolute; z-index: 4; width: 38%; left: 31%; top: 66px; height: 46px; transform: skewY(-5deg);
   background: linear-gradient(transparent,#ff873e16); border-bottom: 1px solid #ffad7ed1;
@@ -208,7 +206,7 @@
   .studio-toolbar span:last-child { font-size: 7px; padding: 5px 7px; }
   .studio-panel,.studio-connectors { display: none; }
   .studio-package { top: -48px; bottom: 20px; }
-  .studio-static-package { top: 45px; width: 155px; height: 270px; left: calc(50% - 77px); }
+  .studio-static-image { top: 2%; left: 30%; width: 40%; height: 96%; }
   .studio-orbit { top: 236px; left: 16%; width: 68%; height: 74px; }
   .studio-shadow { top: 255px; }
   .studio-floor { top: 150px; }

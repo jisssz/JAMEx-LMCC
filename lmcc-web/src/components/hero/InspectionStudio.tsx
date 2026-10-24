@@ -4,7 +4,9 @@ import { Camera, Geometry, Mesh, Program, Renderer, Texture, Transform, type OGL
 import { ScanLine, Fingerprint, Scale, FileText, PackageSearch, IndianRupee, Building2, Phone, ChartNoAxesColumnIncreasing, ArrowRight, ShieldCheck } from 'lucide-react';
 import './InspectionStudio.css';
 
-// Local illustration only. This component never reads or writes inspection state.
+const PACKAGE_IMAGE = '/images/lays-classic-packet.png';
+
+// Sample display only. This component never reads or writes inspection state.
 const declarations = [
   ['identity', 'PRODUCT IDENTITY', "Lay’s Classic", 'Potato chips · sample package', PackageSearch],
   ['quantity', 'NET QUANTITY', '52 g', 'Illustrative declaration', Scale],
@@ -13,67 +15,6 @@ const declarations = [
   ['care', 'CONSUMER CARE', 'Sample contact', 'Illustrative declaration only', Phone],
   ['confidence', 'OCR STATUS', 'Awaiting extraction', 'No score or inspection simulated', ChartNoAxesColumnIncreasing],
 ];
-
-function packageArtwork() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1536;
-  canvas.height = 2048;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas unavailable');
-  const w = canvas.width, h = canvas.height;
-  const yellow = ctx.createLinearGradient(0, 0, w, 0);
-  yellow.addColorStop(0, '#9f6000'); yellow.addColorStop(.08, '#f4b000');
-  yellow.addColorStop(.28, '#ffe34a'); yellow.addColorStop(.52, '#ffc30d');
-  yellow.addColorStop(.8, '#f6a900'); yellow.addColorStop(1, '#9b5d04');
-  ctx.fillStyle = yellow; ctx.fillRect(0, 0, w, h);
-  const foil = ctx.createLinearGradient(0, 0, w, 0);
-  foil.addColorStop(0, '#3b200044'); foil.addColorStop(.12, '#fff6b242');
-  foil.addColorStop(.24, '#fff8cf08'); foil.addColorStop(.72, '#fff8cf00');
-  foil.addColorStop(.9, '#fff4a733'); foil.addColorStop(1, '#3b200044');
-  ctx.fillStyle = foil; ctx.fillRect(0, 0, w, h);
-  // Heat-sealed ends, diagonal crimp marks and foil folds give the illustration bag-like highlights.
-  for (const y of [0, 164, h - 174, h - 72]) {
-    ctx.fillStyle = '#8a510057'; ctx.fillRect(0, y, w, 12);
-    ctx.fillStyle = '#fff1a34f'; ctx.fillRect(0, y + 14, w, 5);
-    ctx.strokeStyle = '#9e5b056b'; ctx.lineWidth = 4;
-    for (let x = -30; x < w + 40; x += 34) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 24, y + 42); ctx.stroke(); }
-  }
-  for (let i = 0; i < 12; i++) {
-    const x = i * 150; ctx.beginPath(); ctx.moveTo(x, 160); ctx.bezierCurveTo(x + 100, 650, x - 80, 1310, x + 60, 1870);
-    ctx.strokeStyle = i % 2 ? '#fff6c71a' : '#6e3f0014'; ctx.lineWidth = i % 3 === 0 ? 10 : 4; ctx.stroke();
-  }
-  ctx.textAlign = 'center'; ctx.fillStyle = '#8a4a05'; ctx.font = '600 30px Arial, sans-serif';
-  ctx.fillText('POTATO CHIPS', w / 2, 278);
-  // Original illustrative badge inspired by the supplied visual reference; this is not official pack art.
-  ctx.save(); ctx.translate(w / 2, 570); ctx.rotate(-.045); ctx.shadowColor = '#8d4a00aa'; ctx.shadowBlur = 28;
-  ctx.fillStyle = '#fff4bb'; ctx.beginPath(); ctx.ellipse(0, 0, 365, 218, -.06, 0, Math.PI * 2); ctx.fill();
-  ctx.shadowBlur = 0; ctx.fillStyle = '#d92722'; ctx.beginPath(); ctx.ellipse(0, 3, 323, 168, -.055, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 13; ctx.stroke();
-  ctx.fillStyle = '#fff'; ctx.font = 'italic 900 196px Arial, sans-serif'; ctx.lineWidth = 8; ctx.strokeStyle = '#a51a1d';
-  ctx.strokeText("Lay’s", 0, 63); ctx.fillText("Lay’s", 0, 63); ctx.restore();
-  ctx.fillStyle = '#4f2c0a'; ctx.font = '500 120px Arial, sans-serif'; ctx.fillText('CLASSIC', w / 2, 795);
-  const drawChip = (cx: number, cy: number, rx: number, ry: number, rotation: number) => {
-    ctx.save(); ctx.translate(cx, cy); ctx.rotate(rotation); ctx.shadowColor = '#8f4b0033'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 4;
-    const color = ctx.createLinearGradient(-rx, -ry, rx, ry); color.addColorStop(0, '#fff3b6'); color.addColorStop(.42, '#ffe17a'); color.addColorStop(1, '#eab23c');
-    ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(-rx, 0);
-    ctx.bezierCurveTo(-rx * .75, -ry * .9, -rx * .15, -ry * .75, 0, -ry * .82);
-    ctx.bezierCurveTo(rx * .35, -ry, rx * .85, -ry * .4, rx, 0);
-    ctx.bezierCurveTo(rx * .7, ry * .8, rx * .2, ry * .68, 0, ry * .82);
-    ctx.bezierCurveTo(-rx * .45, ry, -rx * .86, ry * .38, -rx, 0); ctx.fill();
-    ctx.shadowColor = 'transparent'; ctx.strokeStyle = '#fff0a5a0'; ctx.lineWidth = 7;
-    ctx.beginPath(); ctx.moveTo(-rx * .68, -ry * .1); ctx.quadraticCurveTo(0, -ry * .55, rx * .68, -ry * .12); ctx.stroke(); ctx.restore();
-  };
-  drawChip(500, 1050, 250, 124, -.24); drawChip(1010, 1090, 238, 126, .2); drawChip(760, 1260, 280, 138, -.02);
-  ctx.fillStyle = '#5b3906'; ctx.font = '700 52px Arial, sans-serif'; ctx.fillText('NET QUANTITY 52 g', w / 2, 1506);
-  ctx.font = '700 62px Arial, sans-serif'; ctx.fillText('MRP ₹ 20.00', w / 2, 1570);
-  ctx.font = '34px Arial, sans-serif'; ctx.fillText('(Inclusive of all taxes)', w / 2, 1612);
-  ctx.strokeStyle = '#176b3b'; ctx.lineWidth = 7; ctx.strokeRect(w - 144, 1656, 58, 58);
-  ctx.fillStyle = '#176b3b'; ctx.beginPath(); ctx.arc(w - 115, 1685, 17, 0, Math.PI * 2); ctx.fill();
-  ctx.font = '600 28px Arial, sans-serif'; ctx.fillStyle = '#624009';
-  ctx.fillText('ILLUSTRATIVE PACKAGE ART · NOT AN INSPECTION', w / 2, 1780);
-  ctx.fillText('PACKER / CONTACT DECLARATIONS ARE SAMPLE PLACEHOLDERS', w / 2, 1824);
-  return canvas;
-}
 
 function pouchGeometry(gl: OGLRenderingContext) {
   const columns = 48, rows = 72;
@@ -163,17 +104,16 @@ vec3 light=normalize(vec3(-3.,4.,5.));
 float diffuse=max(dot(n,light),0.);
 float spec=pow(max(dot(n,normalize(light+eye)),0.),mix(35.,100.,metal));
 float rim=pow(1.-max(dot(n,eye),0.),3.);
-vec3 base=mix(texture2D(tMap,vUv).rgb,vec3(.33,.36,.35),metal);
-float fold=sin(vUv.y*54.+sin(vUv.x*17.)*3.)*.018;
-float edgeShade=smoothstep(0.,.16,min(vUv.x,1.-vUv.x))*.12;
-vec3 color=base*(.37+.68*diffuse+fold-edgeShade)+spec*mix(.15,.85,metal)+rim*vec3(.20,.12,.08);
-gl_FragColor=vec4(color,1.); }`;
+vec4 tex=texture2D(tMap,vUv);
+vec3 color=tex.rgb*(.9+.1*diffuse)+spec*mix(.025,.18,metal)+rim*vec3(.055,.032,.008);
+gl_FragColor=vec4(color,tex.a); }`;
 
 export default function InspectionStudio() {
   const navigate = useNavigate();
   const rootRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
+  const [assetFailed, setAssetFailed] = useState(false);
 
   useEffect(() => {
     const host = canvasRef.current;
@@ -188,8 +128,18 @@ export default function InspectionStudio() {
       const rig = new Transform(); rig.setParent(scene);
       const camera = new Camera(gl, { fov: 36 });
       camera.position.set(0, .45, 7.5); camera.lookAt([0, 0, 0]);
-      const texture = new Texture(gl, { image: packageArtwork(), generateMipmaps: false });
-      const labelProgram = new Program(gl, { vertex, fragment, uniforms: { tMap: { value: texture }, metal: { value: 0 } } });
+      const texture = new Texture(gl, { generateMipmaps: false, flipY: true });
+      const artwork = new Image();
+      artwork.onload = () => {
+        texture.image = artwork;
+        texture.needsUpdate = true;
+        setAssetFailed(false);
+        setReady(true);
+        renderer.render({ scene, camera });
+      };
+      artwork.onerror = () => { setAssetFailed(true); setReady(false); };
+      artwork.src = PACKAGE_IMAGE;
+      const labelProgram = new Program(gl, { vertex, fragment, transparent: true, uniforms: { tMap: { value: texture }, metal: { value: 0 } } });
       const bodyGeometry = pouchGeometry(gl);
       const body = new Mesh(gl, { geometry: bodyGeometry, program: labelProgram }); body.setParent(rig);
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -232,7 +182,7 @@ export default function InspectionStudio() {
       root.addEventListener('pointermove', pointer); root.addEventListener('pointerleave', reset);
       gl.canvas.addEventListener('webglcontextlost', contextLost);
       document.addEventListener('visibilitychange', sync); reduced.addEventListener('change', sync);
-      resize(); renderer.render({ scene, camera }); setReady(true);
+      resize(); renderer.render({ scene, camera });
       dispose = () => {
         cancelAnimationFrame(frame); observer.disconnect(); resizer.disconnect();
         root.removeEventListener('pointermove', pointer); root.removeEventListener('pointerleave', reset);
@@ -249,14 +199,15 @@ export default function InspectionStudio() {
   }, []);
 
   return (
-    <figure ref={rootRef} className="inspection-studio" data-running="false" aria-label="Sample packaged commodity inspection illustration">
+      <figure ref={rootRef} className="inspection-studio" data-running="false">
       <div className="studio-toolbar"><span><i /> INSPECTION STUDIO</span><span>SAMPLE INSPECTION</span></div>
       <div className="studio-scene">
         <div className="studio-orbit" aria-hidden="true" />
         <div className="studio-floor" aria-hidden="true" />
-        <div className="studio-package" aria-hidden="true">
-          <div ref={canvasRef} className="studio-canvas" style={{ opacity: ready ? 1 : 0 }} />
-          {!ready && <div className="studio-static-package"><small>ILLUSTRATIVE PACKAGE ART</small><strong className="static-lays">Lay’s</strong><strong>CLASSIC</strong><span>NET QUANTITY 52 g</span><span>MRP ₹ 20.00</span><small>Sample declaration values<br />Not an inspection</small></div>}
+        <div className="studio-package">
+          <img className="studio-static-image" src={PACKAGE_IMAGE} alt="Yellow Lay’s Classic potato chips packet, 52 g, MRP ₹20.00" fetchPriority="high" decoding="async" onError={() => setAssetFailed(true)} aria-hidden={ready} style={{ opacity: ready ? 0 : 1 }} />
+          <div ref={canvasRef} className="studio-canvas" aria-hidden="true" style={{ opacity: ready ? 1 : 0 }} />
+          {assetFailed && <div className="studio-image-error" role="img" aria-label="Packet image unavailable">Packet image unavailable</div>}
         </div>
         <div className="studio-scanner" aria-hidden="true"><span /></div>
         <div className="studio-shadow" aria-hidden="true" />

@@ -27,6 +27,7 @@ try {
     await page.goto(`${base}/?intro=false`, { waitUntil: 'networkidle0' });
     await page.waitForSelector('.studio-canvas canvas');
     await page.waitForFunction(() => getComputedStyle(document.querySelector('.studio-canvas')!).opacity === '1');
+    assert.deepEqual(await page.$eval('.studio-static-image', el => [(el as HTMLImageElement).naturalWidth, (el as HTMLImageElement).naturalHeight]), [1024, 1536], 'Supplied packet asset should load at its original proportions');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Overflow at ${width}`);
     assert.ok(await page.$eval('.studio-result', el => el.textContent?.includes('NEEDS REVIEW')));
     if (process.env.STUDIO_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.STUDIO_SCREENSHOT_DIR}/studio-${width}.png`, fullPage: true });
@@ -49,7 +50,7 @@ try {
     const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
     gl?.getExtension('WEBGL_lose_context')?.loseContext();
   });
-  await page.waitForSelector('.studio-static-package');
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.studio-static-image')!).opacity === '1');
   console.log('PASS WebGL context-loss fallback');
   await page.evaluateOnNewDocument(() => {
     const getContext = HTMLCanvasElement.prototype.getContext;
@@ -59,7 +60,7 @@ try {
     } as typeof getContext;
   });
   await page.goto(`${base}/?intro=false`, { waitUntil: 'networkidle0' });
-  await page.waitForSelector('.studio-static-package');
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.studio-static-image')!).opacity === '1');
   if (process.env.STUDIO_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.STUDIO_SCREENSHOT_DIR}/studio-fallback.png` });
   console.log('PASS no-WebGL fallback');
   // OGL logs its expected renderer error when WebGL is explicitly disabled.
