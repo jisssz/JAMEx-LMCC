@@ -1,7 +1,7 @@
 # JAMH X — Legal Metrology Compliance Checker (LMCC)
 
 > **Autonomous Statutory Surveillance & Package Declaration Verification Engine**  
-> *Built for AIBoomi Startup Weekend, Kochi • Team: HELL YEAH*
+> *Built for AIBoomi Startup Weekend, Kochi • Team: JAMH X*
 
 [![Production Status](https://img.shields.io/badge/Production-Live%20on%20Vercel-success?style=flat-square&logo=vercel)](https://lmcc-web-ten.vercel.app/)
 [![Backend Health](https://img.shields.io/badge/API%20Health-200%20OK-blue?style=flat-square)](https://lmcc-backend.vercel.app/api/health)
@@ -350,7 +350,7 @@ npm run build
 
 ## 13. Team
 
-**Team Name:** HELL YEAH  
+**Team Name:** JAMH X  
 **Event:** AIBoomi Startup Weekend, Kochi  
 
 - **Jis Shajan**
