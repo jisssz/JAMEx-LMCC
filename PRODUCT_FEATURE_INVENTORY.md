@@ -10,6 +10,7 @@ Status snapshot: 2026-10-24. “Working” means present in the repository and r
 | Deterministic rule screening | `/results` | Live | Local rules engine | `test:all` |
 | Human review and reports | `/results`, `/report`, `/history/:id` | Live | Local report store and sync | `test:all` |
 | History | `/history` | Live | Local report store | `test:all` |
+| Report center | `/reports` | Live; saved server/on-device records, search/status filters, preview, PDF/CSV download, empty/offline states | Reporting API plus local report store | Frontend build; 127 frontend tests; production route smoke check |
 | Rules library | `/rules` | Live | Static rules content | Frontend build |
 | Authority analytics | `/authority-dashboard` | Demo by default; live toggle | Analytics API, with demo fallback | Existing frontend tests/build |
 | Compliance copilot | Results panel | Provider-dependent with offline fallback | `/api/copilot/chat` when configured | `test:copilot` |
@@ -22,7 +23,7 @@ Status snapshot: 2026-10-24. “Working” means present in the repository and r
 
 - No image-editing AI provider or credential is configured. Current enhancement is deterministic local contrast/sharpening only and is labelled accordingly.
 - Inspection records do not currently include a verified state/UT jurisdiction field. The India map remains demo-only and does not infer location from addresses or GPS.
-- The backend Gemini vision endpoint now uses an actual multimodal model when a key is configured; mock extraction is explicit for local tests and blocked in production. The provider integration is contract-tested with a stub; no paid live extraction call was made in this iteration. In Results, users must explicitly choose to send the original image to the backend. Returned values stay outside the report until a person verifies them.
+- The backend Gemini vision endpoint uses a documented multimodal model when configured; mock extraction is explicit for local tests and blocked in production. The provider integration is contract-tested with a stub. A live production vision request returned HTTP 502, so production AI extraction is not confirmed. In Results, users must explicitly choose to send the original image to the backend. Returned values stay outside the report until a person verifies them.
 - The public provider diagnostic now reports configuration only. It no longer probes models, makes billable requests, or returns key fragments.
 - Authority analytics in demonstration mode are illustrative. Live mode depends on the configured backend and visibly falls back to demo data on failure.
 
@@ -31,5 +32,5 @@ Status snapshot: 2026-10-24. “Working” means present in the repository and r
 - Frontend build passes; existing frontend suites pass: 127 tests.
 - Backend suites pass: 59 tests.
 - Manual browser check on local Vite verified map rendering, state selection, and category-filtered counts.
-- Before this update, the public production diagnostic reported Gemini configured and returned model connectivity results, but did not establish the vision route or frontend call path. Its key-fragment disclosure and billable GET probes have been removed in source; production behavior after the new push still requires verification.
-- Production frontend routes `/image-enhancement` and `/india-map` are reachable. Current post-update deployment status is pending the new push.
+- The public production diagnostic now reports configuration only. Production Gemini vision extraction was separately invoked and returned HTTP 502; the failure cause remains unresolved.
+- Production frontend routes `/image-enhancement`, `/india-map`, and the new `/reports` Report Center are reachable. Vercel deployment status after the latest Reports commit was not independently confirmed.
