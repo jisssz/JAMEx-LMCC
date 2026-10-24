@@ -126,3 +126,55 @@ def test_gemini_vision_uses_multimodal_model_and_matching_image_mime(monkeypatch
     assert "Untrusted OCR context" in captured["body"]["contents"][0]["parts"][0]["text"]
     assert result.provider_used == "gemini-3.5-flash-lite"
     assert result.mrp.value == "₹40"
+
+
+def test_gemini_vision_normalizes_markdown_json_and_unbounded_confidence(monkeypatch):
+    from app.services.vision.provider import GeminiVisionProvider
+
+    class StubClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def post(self, *_args, **_kwargs):
+            return SimpleNamespace(
+                status_code=200,
+                json=lambda: {"candidates": [{"content": {"parts": [{"text": '```json\n{"mrp":{"value":"₹20","confidence":94,"status":"DETECTED","evidence":"MRP ₹20"}}\n```'}]}}]},
+            )
+
+    monkeypatch.setattr("app.services.vision.provider.httpx.AsyncClient", lambda **_kwargs: StubClient())
+    provider = GeminiVisionProvider("test-key")
+    result = asyncio.run(provider.extract_declarations(VisionExtractionRequest(image_base64=VALID_SAMPLE_BASE64)))
+
+    assert result.mrp.value == "₹20"
+    assert result.mrp.confidence == 1.0
+    assert result.mrp.status == "detected"
+    assert result.mrp.evidence_snippet == "MRP ₹20"
+
+
+def test_gemini_vision_unprocessable_response_has_safe_error(monkeypatch):
+    from app.services.vision.provider import GeminiVisionProvider, VisionProviderUnavailableException
+
+    class StubClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def post(self, *_args, **_kwargs):
+            return SimpleNamespace(
+                status_code=200,
+                json=lambda: {"candidates": [{"content": {"parts": [{"text": "not-json-private-output"}]}}]},
+            )
+
+    monkeypatch.setattr("app.services.vision.provider.httpx.AsyncClient", lambda **_kwargs: StubClient())
+    provider = GeminiVisionProvider("test-key")
+    try:
+        asyncio.run(provider.extract_declarations(VisionExtractionRequest(image_base64=VALID_SAMPLE_BASE64)))
+        assert False, "Expected provider response parsing to fail safely"
+    except VisionProviderUnavailableException as exc:
+        assert "could not be processed" in str(exc)
+        assert "not-json-private-output" not in str(exc)

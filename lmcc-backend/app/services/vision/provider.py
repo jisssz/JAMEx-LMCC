@@ -1,6 +1,7 @@
 import os
 import base64
 import json
+import logging
 import re
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -11,6 +12,8 @@ from app.schemas.vision import (
     ExtractedFieldItem,
 )
 from app.services.vision.image_payload import decode_image_payload
+
+logger = logging.getLogger(__name__)
 
 
 class VisionProviderUnavailableException(Exception):
@@ -158,30 +161,69 @@ class GeminiVisionProvider(VisionExtractionProvider):
             },
         }
 
-        async with httpx.AsyncClient(timeout=25.0) as client:
-            resp = await client.post(
-                self.endpoint,
-                json=payload,
-                headers={"x-goog-api-key": self.api_key, "Content-Type": "application/json"},
-            )
-            if resp.status_code != 200:
-                raise VisionProviderUnavailableException(f"Gemini vision request failed with HTTP {resp.status_code}.")
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(25.0, connect=8.0)) as client:
+                resp = await client.post(
+                    self.endpoint,
+                    json=payload,
+                    headers={"x-goog-api-key": self.api_key, "Content-Type": "application/json"},
+                )
+        except httpx.TimeoutException as exc:
+            logger.warning("Gemini vision request timed out (model=%s, exception=%s)", self.model, type(exc).__name__)
+            raise VisionProviderUnavailableException("Gemini vision request timed out after 25 seconds.") from exc
+        except httpx.RequestError as exc:
+            logger.warning("Gemini vision transport failed (model=%s, exception=%s)", self.model, type(exc).__name__)
+            raise VisionProviderUnavailableException("Gemini vision request could not reach the provider.") from exc
 
+        if resp.status_code != 200:
+            logger.warning("Gemini vision provider returned HTTP %s (model=%s)", resp.status_code, self.model)
+            raise VisionProviderUnavailableException(f"Gemini vision request failed with HTTP {resp.status_code}.")
+
+        stage = "provider_json"
+        try:
             result_json = resp.json()
-            raw_text = result_json["candidates"][0]["content"]["parts"][0]["text"]
-            parsed = json.loads(raw_text)
+            stage = "candidate_text"
+            candidates = result_json.get("candidates") or []
+            parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
+            raw_text = "\n".join(part["text"] for part in parts if isinstance(part, dict) and isinstance(part.get("text"), str))
+            if not raw_text.strip():
+                raise ValueError("No text part in first candidate")
+
+            stage = "structured_json"
+            cleaned_text = raw_text.strip()
+            if cleaned_text.startswith("```"):
+                cleaned_text = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned_text, flags=re.IGNORECASE).strip()
+            parsed = json.loads(cleaned_text)
+            if not isinstance(parsed, dict):
+                raise ValueError("Model output was not a JSON object")
 
             def get_field(key: str) -> ExtractedFieldItem:
-                val = parsed.get(key, {})
+                val = parsed.get(key)
                 if isinstance(val, dict):
+                    raw_value = val.get("value")
+                    value = str(raw_value) if raw_value is not None and not isinstance(raw_value, (dict, list)) else None
+                    try:
+                        confidence = float(val.get("confidence", 0.8))
+                    except (TypeError, ValueError):
+                        confidence = 0.0
+                    confidence = min(1.0, max(0.0, confidence))
+                    raw_status = str(val.get("status", "")).strip().lower()
+                    valid_statuses = {"detected", "uncertain", "not_detected"}
+                    status = raw_status if raw_status in valid_statuses else ("detected" if value else "not_detected")
+                    evidence = val.get("evidence_snippet", val.get("evidence"))
                     return ExtractedFieldItem(
-                        value=val.get("value"),
-                        confidence=float(val.get("confidence", 0.8)),
-                        status=val.get("status", "detected" if val.get("value") else "not_detected"),
-                        evidence_snippet=val.get("evidence"),
+                        value=value,
+                        confidence=confidence,
+                        status=status,
+                        evidence_snippet=evidence if isinstance(evidence, str) else None,
                     )
-                return ExtractedFieldItem(value=str(val) if val else None, confidence=0.8, status="detected")
+                if val is None:
+                    return ExtractedFieldItem()
+                if isinstance(val, (str, int, float)):
+                    return ExtractedFieldItem(value=str(val), confidence=0.8, status="detected")
+                return ExtractedFieldItem()
 
+            stage = "response_validation"
             return VisionExtractionResponse(
                 product_name=get_field("product_name"),
                 mrp=get_field("mrp"),
@@ -193,6 +235,10 @@ class GeminiVisionProvider(VisionExtractionProvider):
                 is_ai_fallback=True,
                 provenance=f"Google Gemini multimodal extraction ({self.model}); advisory, verify against original image",
             )
+        except Exception as exc:
+            # Never log provider response text, images, OCR context, API keys, or exception messages.
+            logger.error("Gemini vision response processing failed (stage=%s, exception=%s)", stage, type(exc).__name__)
+            raise VisionProviderUnavailableException("Gemini vision returned a response that could not be processed.") from exc
 
 
 def get_vision_provider() -> VisionExtractionProvider:
