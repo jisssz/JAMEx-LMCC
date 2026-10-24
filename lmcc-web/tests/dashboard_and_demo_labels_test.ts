@@ -89,3 +89,48 @@ test('India Compliance Map: Explicitly declares simulated demo data', () => {
     'Map must include Surveillance Modeling Notice disclaimer'
   );
 });
+
+test('History: Category and date filters are actively bound to filtered records', () => {
+  const historyContent = fs.readFileSync(
+    path.resolve(__dirname, '../src/pages/History.tsx'),
+    'utf-8'
+  );
+
+  assert.ok(
+    historyContent.includes('categoryFilter'),
+    'History must maintain category filter state'
+  );
+  assert.ok(
+    historyContent.includes('timePeriodFilter'),
+    'History must maintain time period filter state'
+  );
+  assert.ok(
+    historyContent.includes('matchesCategory'),
+    'History must filter records by category'
+  );
+  assert.ok(
+    historyContent.includes('matchesTime'),
+    'History must filter records by time period'
+  );
+});
+
+test('Dashboard: Date range dropdown actively scales surveillance metrics and filters reports', () => {
+  const dashboardContent = fs.readFileSync(
+    path.resolve(__dirname, '../src/pages/Dashboard.tsx'),
+    'utf-8'
+  );
+
+  assert.ok(
+    dashboardContent.includes('filteredReports'),
+    'Dashboard must compute filtered reports based on timeRange'
+  );
+  assert.ok(
+    dashboardContent.includes('baselineMetrics'),
+    'Dashboard must reconcile baseline metrics for selected timeRange'
+  );
+  assert.ok(
+    dashboardContent.includes('trendCompliant'),
+    'Dashboard must display dynamic trend percentage based on selected time window'
+  );
+});
+

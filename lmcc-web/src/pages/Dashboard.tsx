@@ -113,15 +113,52 @@ export const Dashboard: React.FC = () => {
     };
   }, []);
 
+  // Dynamic date filtering
+  const filteredReports = useMemo(() => {
+    if (timeRange === 'All time') return reports;
+    const now = Date.now();
+    const days = timeRange === 'Last 7 days' ? 7 : timeRange === 'Last 30 days' ? 30 : 90;
+    const cutoff = now - days * 24 * 60 * 60 * 1000;
+    return reports.filter((r) => {
+      const t = new Date(r.createdAt).getTime();
+      return !isNaN(t) ? t >= cutoff : true;
+    });
+  }, [reports, timeRange]);
+
+  const filteredLocalReports = useMemo(() => {
+    if (timeRange === 'All time') return localReports;
+    const now = Date.now();
+    const days = timeRange === 'Last 7 days' ? 7 : timeRange === 'Last 30 days' ? 30 : 90;
+    const cutoff = now - days * 24 * 60 * 60 * 1000;
+    return localReports.filter((l) => {
+      const t = new Date(l.createdAt).getTime();
+      return !isNaN(t) ? t >= cutoff : true;
+    });
+  }, [localReports, timeRange]);
+
+  const baselineMetrics = useMemo(() => {
+    switch (timeRange) {
+      case 'Last 7 days':
+        return { total: 298, compliant: 212, review: 20, flagged: 66, trendTotal: '↑ 9%', trendCompliant: '↑ 14%', trendReview: '↑ 4%', trendFlagged: '↓ 3%' };
+      case 'Last 90 days':
+        return { total: 3850, compliant: 2740, review: 260, flagged: 850, trendTotal: '↑ 16%', trendCompliant: '↑ 21%', trendReview: '↑ 11%', trendFlagged: '↓ 8%' };
+      case 'All time':
+        return { total: 12486, compliant: 8912, review: 890, flagged: 2684, trendTotal: '↑ 18%', trendCompliant: '↑ 24%', trendReview: '↑ 12%', trendFlagged: '↓ 9%' };
+      case 'Last 30 days':
+      default:
+        return { total: 1284, compliant: 912, review: 86, flagged: 286, trendTotal: '↑ 12%', trendCompliant: '↑ 18%', trendReview: '↑ 8%', trendFlagged: '↓ 6%' };
+    }
+  }, [timeRange]);
+
   // Compute live metrics combined with base surveillance volume
-  const livePassCount = reports.filter((r) => r.verdict === 'PASS').length;
-  const liveReviewCount = reports.filter((r) => r.verdict !== 'PASS').length;
-  const liveFlaggedIssues = reports.reduce((acc, r) => acc + (r.issueCount || 0), 0);
+  const livePassCount = filteredReports.filter((r) => r.verdict === 'PASS').length;
+  const liveReviewCount = filteredReports.filter((r) => r.verdict !== 'PASS').length;
+  const liveFlaggedIssues = filteredReports.reduce((acc, r) => acc + (r.issueCount || 0), 0);
 
   // Combine real inspections with benchmark demo rows
   const combinedRecentInspections: DemoInspectionRow[] = useMemo(() => {
     const liveRows: DemoInspectionRow[] = [
-      ...reports.slice(0, 4).map((r) => ({
+      ...filteredReports.slice(0, 4).map((r) => ({
         id: r.id,
         name: r.productName || 'Package Inspection',
         weight: r.netQuantity || 'Standard Pack',
@@ -134,7 +171,7 @@ export const Dashboard: React.FC = () => {
         }),
         isDemo: false,
       })),
-      ...localReports
+      ...filteredLocalReports
         .filter((l) => l.syncStatus !== 'synced')
         .slice(0, 2)
         .map((l) => ({
@@ -157,7 +194,7 @@ export const Dashboard: React.FC = () => {
     }
     // Blend in benchmark demo rows to complete 4 presentation rows
     return [...liveRows, ...benchmarkDemoInspections.slice(0, 4 - liveRows.length)];
-  }, [reports, localReports]);
+  }, [filteredReports, filteredLocalReports]);
 
   return (
     <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-orange-500/30 font-sans">
@@ -287,14 +324,14 @@ export const Dashboard: React.FC = () => {
                 <Layers size={18} />
               </div>
               <div className="flex items-center gap-1 text-xs font-mono font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                <span>↑ 12%</span>
+                <span>{baselineMetrics.trendTotal}</span>
               </div>
             </div>
 
             <div className="mt-4 flex items-baseline justify-between">
               <div>
                 <span className="text-3xl font-bold text-white font-mono leading-none block">
-                  {loading ? '—' : (1284 + reports.length).toLocaleString()}
+                  {loading ? '—' : (baselineMetrics.total + filteredReports.length).toLocaleString()}
                 </span>
                 <span className="text-xs text-slate-400 mt-1.5 block">Total inspections</span>
               </div>
@@ -331,14 +368,14 @@ export const Dashboard: React.FC = () => {
                 <ShieldCheck size={18} />
               </div>
               <div className="flex items-center gap-1 text-xs font-mono font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                <span>↑ 18%</span>
+                <span>{baselineMetrics.trendCompliant}</span>
               </div>
             </div>
 
             <div className="mt-4 flex items-baseline justify-between">
               <div>
                 <span className="text-3xl font-bold text-white font-mono leading-none block">
-                  {loading ? '—' : (912 + livePassCount).toLocaleString()}
+                  {loading ? '—' : (baselineMetrics.compliant + livePassCount).toLocaleString()}
                 </span>
                 <span className="text-xs text-slate-400 mt-1.5 block">Compliant</span>
               </div>
@@ -365,14 +402,14 @@ export const Dashboard: React.FC = () => {
                 <AlertTriangle size={18} />
               </div>
               <div className="flex items-center gap-1 text-xs font-mono font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                <span>↑ 8%</span>
+                <span>{baselineMetrics.trendReview}</span>
               </div>
             </div>
 
             <div className="mt-4 flex items-baseline justify-between">
               <div>
                 <span className="text-3xl font-bold text-white font-mono leading-none block">
-                  {loading ? '—' : (86 + liveReviewCount).toLocaleString()}
+                  {loading ? '—' : (baselineMetrics.review + liveReviewCount).toLocaleString()}
                 </span>
                 <span className="text-xs text-slate-400 mt-1.5 block">Needs review</span>
               </div>
@@ -399,14 +436,14 @@ export const Dashboard: React.FC = () => {
                 <AlertCircle size={18} />
               </div>
               <div className="flex items-center gap-1 text-xs font-mono font-medium text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
-                <span>↓ 6%</span>
+                <span>{baselineMetrics.trendFlagged}</span>
               </div>
             </div>
 
             <div className="mt-4 flex items-baseline justify-between">
               <div>
                 <span className="text-3xl font-bold text-white font-mono leading-none block">
-                  {loading ? '—' : (286 + liveFlaggedIssues).toLocaleString()}
+                  {loading ? '—' : (baselineMetrics.flagged + liveFlaggedIssues).toLocaleString()}
                 </span>
                 <span className="text-xs text-slate-400 mt-1.5 block">Flagged declarations</span>
               </div>

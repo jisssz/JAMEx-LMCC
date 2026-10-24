@@ -9,7 +9,6 @@ import {
   RefreshCw,
   Sun,
   Eye,
-  Sliders,
   ArrowRight,
   Clock,
   Layers,
@@ -319,8 +318,8 @@ export const ImageEnhancement: React.FC = () => {
             <ImageComparisonSlider
               originalUrl={currentOriginalUrl}
               enhancedUrl={currentEnhancedUrl}
-              originalLabel="Original (Low quality)"
-              enhancedLabel="Enhanced (AI)"
+              originalLabel="Original Source"
+              enhancedLabel="Working Copy (Enhanced)"
             />
           </div>
 
@@ -361,7 +360,7 @@ export const ImageEnhancement: React.FC = () => {
                     />
                     <path
                       className="text-emerald-400"
-                      strokeDasharray={`${evaluation?.overallScore || 78}, 100`}
+                      strokeDasharray={`${evaluation?.overallScore || 80}, 100`}
                       strokeWidth="3.5"
                       strokeLinecap="round"
                       stroke="currentColor"
@@ -370,19 +369,24 @@ export const ImageEnhancement: React.FC = () => {
                     />
                   </svg>
                   <span className="absolute font-semibold text-sm text-white font-mono">
-                    {evaluation?.overallScore || 78}%
+                    {evaluation?.overallScore || 80}%
                   </span>
                 </div>
                 <div>
-                  <span className="text-xs font-semibold text-emerald-400 block">Good quality</span>
+                  <span className={`text-xs font-semibold block ${
+                    (evaluation?.overallScore || 80) >= 70 ? 'text-emerald-400' : 'text-amber-400'
+                  }`}>
+                    {evaluation?.qualityLevel || 'ACCEPTABLE'} Quality
+                  </span>
                   <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">
-                    Image is clear and suitable for OCR
+                    {evaluation?.actionableGuidance[0] || 'Image analyzed against statutory sharpness criteria.'}
                   </p>
                 </div>
               </div>
 
-              {/* 6 Metrics Progress Bars */}
+              {/* 5 Dynamic Metrics Progress Bars */}
               <div className="space-y-2.5 text-xs">
+                {/* Sharpness */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-slate-400">
                     <Sparkles size={13} className="text-slate-500" />
@@ -390,12 +394,18 @@ export const ImageEnhancement: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                      <div className="h-full bg-emerald-400 rounded-full w-[85%]" />
+                      <div
+                        className="h-full bg-emerald-400 rounded-full"
+                        style={{ width: `${evaluation ? Math.min(100, Math.round(evaluation.metrics.sharpnessScore)) : 82}%` }}
+                      />
                     </div>
-                    <span className="text-[10px] text-emerald-400 font-medium">Good</span>
+                    <span className="text-[10px] text-emerald-400 font-mono">
+                      {evaluation ? `${Math.min(100, Math.round(evaluation.metrics.sharpnessScore))}%` : '82%'}
+                    </span>
                   </div>
                 </div>
 
+                {/* Lighting */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-slate-400">
                     <Sun size={13} className="text-slate-500" />
@@ -403,38 +413,37 @@ export const ImageEnhancement: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                      <div className="h-full bg-emerald-400 rounded-full w-[90%]" />
+                      <div
+                        className="h-full bg-emerald-400 rounded-full"
+                        style={{ width: `${evaluation ? Math.min(100, Math.round((evaluation.metrics.meanLuminance / 255) * 100)) : 88}%` }}
+                      />
                     </div>
-                    <span className="text-[10px] text-emerald-400 font-medium">Good</span>
+                    <span className="text-[10px] text-emerald-400 font-mono">
+                      {evaluation ? `${Math.min(100, Math.round((evaluation.metrics.meanLuminance / 255) * 100))}%` : '88%'}
+                    </span>
                   </div>
                 </div>
 
+                {/* Glare Control */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-slate-400">
                     <Eye size={13} className="text-slate-500" />
-                    <span>Glare</span>
+                    <span>Glare Control</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                      <div className="h-full bg-amber-400 rounded-full w-[45%]" />
+                      <div
+                        className="h-full bg-amber-400 rounded-full"
+                        style={{ width: `${evaluation ? Math.max(0, 100 - Math.round(evaluation.metrics.glarePercentage)) : 75}%` }}
+                      />
                     </div>
-                    <span className="text-[10px] text-amber-400 font-medium">Minor</span>
+                    <span className="text-[10px] text-amber-400 font-mono">
+                      {evaluation ? `${Math.max(0, 100 - Math.round(evaluation.metrics.glarePercentage))}%` : '75%'}
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-slate-400">
-                    <Sliders size={13} className="text-slate-500" />
-                    <span>Angle</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                      <div className="h-full bg-emerald-400 rounded-full w-[80%]" />
-                    </div>
-                    <span className="text-[10px] text-emerald-400 font-medium">Good</span>
-                  </div>
-                </div>
-
+                {/* Resolution */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-slate-400">
                     <Layers size={13} className="text-slate-500" />
@@ -442,98 +451,98 @@ export const ImageEnhancement: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                      <div className="h-full bg-emerald-400 rounded-full w-[95%]" />
+                      <div
+                        className="h-full bg-emerald-400 rounded-full"
+                        style={{ width: `${evaluation ? (evaluation.metrics.totalPixels >= 300000 ? 95 : 45) : 95}%` }}
+                      />
                     </div>
-                    <span className="text-[10px] text-emerald-400 font-medium">Good</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-slate-400">
-                    <CheckCircle2 size={13} className="text-slate-500" />
-                    <span>Label visibility</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                      <div className="h-full bg-emerald-400 rounded-full w-[88%]" />
-                    </div>
-                    <span className="text-[10px] text-emerald-400 font-medium">Good</span>
+                    <span className="text-[10px] text-emerald-400 font-mono">
+                      {evaluation ? (evaluation.metrics.totalPixels >= 300000 ? 'HD Pass' : 'Low') : 'HD Pass'}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* 2. AI Enhancement Options Card */}
+            {/* 2. Deterministic Image Processing Engine Card */}
             <div className="bg-[#090d16] rounded-3xl p-5 border border-white/[0.08] space-y-4">
-              <div className="flex items-center gap-2 text-violet-400 text-xs font-semibold">
-                <Sparkles size={15} />
-                <span className="text-white">AI Enhancement Options</span>
+              <div className="flex items-center justify-between pb-1 border-b border-white/[0.06]">
+                <div className="flex items-center gap-2 text-violet-400 text-xs font-semibold">
+                  <Sparkles size={15} />
+                  <span className="text-white">Deterministic CV Pipeline</span>
+                </div>
+                <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  VERIFIED
+                </span>
               </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Applies on-device Laplacian edge sharpening and adaptive contrast expansion to assist OCR. Original package evidence is preserved untouched.
+              </p>
 
               <div className="space-y-3 text-xs">
                 {/* Option 1: Auto Enhance */}
                 <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
                   <div>
                     <span className="font-medium text-white block">
-                      Auto Enhance <span className="text-orange-400 text-[10px]">(Recommended)</span>
+                      Adaptive Text Sharpening <span className="text-orange-400 text-[10px]">(Recommended)</span>
                     </span>
                     <span className="text-[11px] text-slate-400 block mt-0.5">
-                      Fix blur, lighting, contrast and improve clarity
+                      Laplacian 3x3 kernel sharpening for micro-declarations
                     </span>
                   </div>
                   <input
                     type="checkbox"
                     checked={autoEnhance}
                     onChange={(e) => setAutoEnhance(e.target.checked)}
-                    className="accent-violet-500 mt-1 cursor-pointer w-4 h-4 rounded"
+                    className="accent-orange-500 mt-1 cursor-pointer w-4 h-4 rounded"
                   />
                 </label>
 
                 {/* Option 2: Remove Glare */}
                 <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
                   <div>
-                    <span className="font-medium text-white block">Remove Glare</span>
+                    <span className="font-medium text-white block">Specular Glare Attenuation</span>
                     <span className="text-[11px] text-slate-400 block mt-0.5">
-                      Reduce reflections on glossy packaging
+                      Adaptive luminance clipping on glossy packaging
                     </span>
                   </div>
                   <input
                     type="checkbox"
                     checked={removeGlare}
                     onChange={(e) => setRemoveGlare(e.target.checked)}
-                    className="accent-violet-500 mt-1 cursor-pointer w-4 h-4 rounded"
+                    className="accent-orange-500 mt-1 cursor-pointer w-4 h-4 rounded"
                   />
                 </label>
 
                 {/* Option 3: Sharpen Text */}
                 <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
                   <div>
-                    <span className="font-medium text-white block">Sharpen Text</span>
+                    <span className="font-medium text-white block">Contrast Expansion</span>
                     <span className="text-[11px] text-slate-400 block mt-0.5">
-                      Improve text and label readability
+                      Histogram stretching to recover low-contrast ink
                     </span>
                   </div>
                   <input
                     type="checkbox"
                     checked={sharpenText}
                     onChange={(e) => setSharpenText(e.target.checked)}
-                    className="accent-violet-500 mt-1 cursor-pointer w-4 h-4 rounded"
+                    className="accent-orange-500 mt-1 cursor-pointer w-4 h-4 rounded"
                   />
                 </label>
 
-                {/* Option 4: Enhance Resolution */}
+                {/* Option 4: Contrast Expansion */}
                 <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
                   <div>
-                    <span className="font-medium text-white block">Enhance Resolution</span>
+                    <span className="font-medium text-white block">Adaptive Contrast Expansion</span>
                     <span className="text-[11px] text-slate-400 block mt-0.5">
-                      Upscale image for better OCR (slower)
+                      Histogram equalization for faded or low-contrast text
                     </span>
                   </div>
                   <input
                     type="checkbox"
                     checked={enhanceResolution}
                     onChange={(e) => setEnhanceResolution(e.target.checked)}
-                    className="accent-violet-500 mt-1 cursor-pointer w-4 h-4 rounded"
+                    className="accent-orange-500 mt-1 cursor-pointer w-4 h-4 rounded"
                   />
                 </label>
               </div>

@@ -182,6 +182,8 @@ export const History: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All Status' | 'Compliant' | 'Needs review' | 'Non-compliant'>('All Status');
+  const [categoryFilter, setCategoryFilter] = useState('All Categories');
+  const [timePeriodFilter, setTimePeriodFilter] = useState('All time');
   const [selectedRecord, setSelectedRecord] = useState<InspectionRecord>(mockInspections[0]);
   const [flyoutOpen, setFlyoutOpen] = useState(true);
   const [detailTab, setDetailTab] = useState<'extracted' | 'rules' | 'images' | 'report'>('extracted');
@@ -272,9 +274,33 @@ export const History: React.FC = () => {
       const matchesStatus =
         statusFilter === 'All Status' || item.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      const matchesCategory =
+        categoryFilter === 'All Categories' || item.category === categoryFilter;
+
+      let matchesTime = true;
+      if (timePeriodFilter !== 'All time') {
+        // Parse date for comparison if feasible
+        const now = Date.now();
+        const days = timePeriodFilter === 'Last 7 days' ? 7 : 30;
+        const itemTime = Date.parse(item.date);
+        if (!isNaN(itemTime)) {
+          matchesTime = now - itemTime <= days * 24 * 60 * 60 * 1000;
+        }
+      }
+
+      return matchesSearch && matchesStatus && matchesCategory && matchesTime;
     });
-  }, [records, searchQuery, statusFilter]);
+  }, [records, searchQuery, statusFilter, categoryFilter, timePeriodFilter]);
+
+  // Derived reconciled metrics
+  const liveCount = useMemo(() => records.filter((r) => !r.isDemo).length, [records]);
+  const demoCount = useMemo(() => records.filter((r) => r.isDemo).length, [records]);
+  const compliantCount = useMemo(() => records.filter((r) => r.status === 'Compliant').length, [records]);
+  const needsReviewCount = useMemo(() => records.filter((r) => r.status === 'Needs review').length, [records]);
+  const nonCompliantCount = useMemo(() => records.filter((r) => r.status === 'Non-compliant').length, [records]);
+  const compliantRate = records.length ? Math.round((compliantCount / records.length) * 100) : 0;
+  const reviewRate = records.length ? Math.round((needsReviewCount / records.length) * 100) : 0;
+  const nonCompliantRate = records.length ? Math.round((nonCompliantCount / records.length) * 100) : 0;
 
   const handleToggleRow = (id: string) => {
     const next = new Set(selectedRows);
@@ -340,9 +366,11 @@ export const History: React.FC = () => {
               </div>
               <div>
                 <span className="text-xl sm:text-2xl font-bold text-white font-mono leading-none block">
-                  1,284
+                  {records.length}
                 </span>
-                <span className="text-[11px] text-slate-400 mt-1 block">Total inspections</span>
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  Total ({liveCount} live · {demoCount} demo)
+                </span>
               </div>
             </div>
           </div>
@@ -355,13 +383,13 @@ export const History: React.FC = () => {
               </div>
               <div>
                 <span className="text-xl sm:text-2xl font-bold text-white font-mono leading-none block">
-                  912
+                  {compliantCount}
                 </span>
                 <span className="text-[11px] text-slate-400 mt-1 block">Compliant</span>
               </div>
             </div>
             <span className="text-xs font-semibold text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-              71%
+              {compliantRate}%
             </span>
           </div>
 
@@ -373,13 +401,13 @@ export const History: React.FC = () => {
               </div>
               <div>
                 <span className="text-xl sm:text-2xl font-bold text-white font-mono leading-none block">
-                  268
+                  {needsReviewCount}
                 </span>
                 <span className="text-[11px] text-slate-400 mt-1 block">Needs review</span>
               </div>
             </div>
             <span className="text-xs font-semibold text-amber-400 font-mono bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-              21%
+              {reviewRate}%
             </span>
           </div>
 
@@ -391,13 +419,13 @@ export const History: React.FC = () => {
               </div>
               <div>
                 <span className="text-xl sm:text-2xl font-bold text-white font-mono leading-none block">
-                  104
+                  {nonCompliantCount}
                 </span>
                 <span className="text-[11px] text-slate-400 mt-1 block">Non-compliant</span>
               </div>
             </div>
             <span className="text-xs font-semibold text-red-400 font-mono bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
-              8%
+              {nonCompliantRate}%
             </span>
           </div>
         </div>
@@ -433,19 +461,30 @@ export const History: React.FC = () => {
             </select>
 
             {/* Categories */}
-            <select className="px-3 py-2 rounded-xl bg-black/40 border border-white/[0.08] text-xs text-slate-300 focus:outline-none cursor-pointer">
-              <option>All Categories</option>
-              <option>Snacks &amp; Chips</option>
-              <option>Beverages</option>
-              <option>Bakery</option>
-              <option>Dairy</option>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-black/40 border border-white/[0.08] text-xs text-slate-300 focus:outline-none cursor-pointer"
+            >
+              <option value="All Categories">All Categories</option>
+              <option value="Snacks & Chips">Snacks &amp; Chips</option>
+              <option value="Beverages">Beverages</option>
+              <option value="Bakery">Bakery</option>
+              <option value="Dairy">Dairy</option>
+              <option value="Instant Food">Instant Food</option>
+              <option value="Confectionery">Confectionery</option>
+              <option value="Packaged Commodity">Packaged Commodity</option>
             </select>
 
             {/* Time Period */}
-            <select className="px-3 py-2 rounded-xl bg-black/40 border border-white/[0.08] text-xs text-slate-300 focus:outline-none cursor-pointer">
-              <option>Last 30 days</option>
-              <option>Last 7 days</option>
-              <option>All time</option>
+            <select
+              value={timePeriodFilter}
+              onChange={(e) => setTimePeriodFilter(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-black/40 border border-white/[0.08] text-xs text-slate-300 focus:outline-none cursor-pointer"
+            >
+              <option value="All time">All time</option>
+              <option value="Last 30 days">Last 30 days</option>
+              <option value="Last 7 days">Last 7 days</option>
             </select>
           </div>
         </div>
@@ -635,7 +674,7 @@ export const History: React.FC = () => {
 
               {/* Table Pagination Footer */}
               <div className="flex items-center justify-between px-6 py-3.5 border-t border-white/[0.06] bg-black/20 text-xs text-slate-400">
-                <span>Showing 1–8 of 1,284 inspections</span>
+                <span>Showing {Math.min(filteredRecords.length, 8)} of {filteredRecords.length} filtered ({records.length} total)</span>
                 <div className="flex items-center gap-1">
                   <button className="p-1.5 rounded-lg hover:bg-white/[0.06] transition text-slate-400 hover:text-white">
                     <ChevronLeft size={14} />
