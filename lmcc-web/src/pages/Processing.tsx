@@ -350,6 +350,7 @@ export const Processing: React.FC = () => {
             type: p.type,
             label: p.label,
             previewUrl: p.previewUrl,
+            ocrImageSource: p.useEnhancedForOcr && p.enhancedBlob ? 'deterministic-enhanced' : 'original',
           })),
           panelProgressSnapshot: panelInputs.map((pi) => ({
             panelId: pi.panelId,
