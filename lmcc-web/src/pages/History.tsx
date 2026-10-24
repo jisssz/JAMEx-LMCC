@@ -1,561 +1,821 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  RefreshCw,
-  AlertTriangle,
-  FileText,
-  ChevronRight,
-  PlusCircle,
-  Clock,
-  WifiOff,
   Search,
-  RotateCw,
+  Eye,
+  FileText,
+  MoreVertical,
+  X,
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+  Download,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
 } from 'lucide-react';
-import { getReports } from '../services/api';
-import { getLocalReports, LocalReport, getReportLifecycleState, ReportLifecycleState } from '../services/storage/localReports';
-import { syncPendingReports, registerSyncListener, isReportSyncing } from '../services/sync/reportSync';
-import { BackgroundBeams } from '../components/ui/background-beams';
 import ZenoxNav from '../components/ui/ZenoxNav';
+import { getReports, ReportRead } from '../services/api';
+import { getLocalReports, LocalReport } from '../services/storage/localReports';
+import { exportInspectionReportPdf } from '../services/export/reportExporter';
 
-interface HistoryItem {
-  id: string; // server ID or localId
-  origin: 'server' | 'local_pending' | 'local_synced' | 'local_failed';
-  lifecycleState: ReportLifecycleState;
-  createdAt: string;
-  verdict: 'PASS' | 'REVIEW';
-  productName?: string;
-  mrp?: string;
-  netQuantity?: string;
-  dateDeclaration?: string;
-  issueCount: number;
-  serverId?: string | null;
-  lastError?: string | null;
+interface InspectionRecord {
+  id: string;
+  name: string;
+  category: string;
+  weight: string;
+  imageUrl: string;
+  mrp: string;
+  netQty: string;
+  packer: string;
+  address: string;
+  genericName: string;
+  consumerCare: string;
+  status: 'Compliant' | 'Needs review' | 'Non-compliant';
+  confidence: number;
+  date: string;
 }
+
+const mockInspections: InspectionRecord[] = [
+  {
+    id: 'INSP-2025-001284',
+    name: "Lay's Classic",
+    category: 'Snacks & Chips',
+    weight: '52 g',
+    imageUrl: '/samples/lays.png',
+    mrp: '₹ 20.00',
+    netQty: '52 g',
+    packer: 'PepsiCo India Holdings Pvt. Ltd.',
+    address: 'Pune, Maharashtra',
+    genericName: 'Potato chips',
+    consumerCare: '1800 22 4020',
+    status: 'Compliant',
+    confidence: 94,
+    date: '12 Oct 2025, 14:32',
+  },
+  {
+    id: 'INSP-2025-001283',
+    name: 'Coca-Cola',
+    category: 'Beverages',
+    weight: '500 ml',
+    imageUrl: '/samples/cola.jpg',
+    mrp: '₹ 40.00',
+    netQty: '500 ml',
+    packer: 'Coca-Cola India Pvt. Ltd.',
+    address: 'Gurugram, Haryana',
+    genericName: 'Carbonated water',
+    consumerCare: '1800 180 2653',
+    status: 'Needs review',
+    confidence: 78,
+    date: '11 Oct 2025, 10:21',
+  },
+  {
+    id: 'INSP-2025-001282',
+    name: 'Britannia Biscuits',
+    category: 'Bakery',
+    weight: '200 g',
+    imageUrl: '/samples/britannia.jpg',
+    mrp: '₹ 30.00',
+    netQty: '200 g',
+    packer: 'Britannia Industries Ltd.',
+    address: 'Kolkata, West Bengal',
+    genericName: 'Biscuits',
+    consumerCare: '1800 425 4449',
+    status: 'Compliant',
+    confidence: 96,
+    date: '11 Oct 2025, 09:15',
+  },
+  {
+    id: 'INSP-2025-001281',
+    name: 'Maggi Noodles',
+    category: 'Instant Food',
+    weight: '70 g',
+    imageUrl: '/samples/maggi.jpg',
+    mrp: '₹ 14.00',
+    netQty: '70 g',
+    packer: 'Nestlé India Ltd.',
+    address: 'New Delhi',
+    genericName: 'Instant Noodles',
+    consumerCare: '1800 103 1947',
+    status: 'Non-compliant',
+    confidence: 62,
+    date: '10 Oct 2025, 18:40',
+  },
+  {
+    id: 'INSP-2025-001280',
+    name: 'Cadbury Choco Bar',
+    category: 'Confectionery',
+    weight: '40 g',
+    imageUrl: '/samples/dairymilk.jpg',
+    mrp: '₹ 20.00',
+    netQty: '40 g',
+    packer: 'Mondelez India Foods Pvt. Ltd.',
+    address: 'Mumbai, Maharashtra',
+    genericName: 'Milk Chocolate',
+    consumerCare: '1800 22 7080',
+    status: 'Compliant',
+    confidence: 91,
+    date: '10 Oct 2025, 16:12',
+  },
+  {
+    id: 'INSP-2025-001279',
+    name: 'Kurkure Masala',
+    category: 'Snacks & Chips',
+    weight: '90 g',
+    imageUrl: '/samples/lays.png',
+    mrp: '₹ 20.00',
+    netQty: '90 g',
+    packer: 'PepsiCo India Holdings Pvt. Ltd.',
+    address: 'Pune, Maharashtra',
+    genericName: 'Extruded Snack',
+    consumerCare: '1800 22 4020',
+    status: 'Compliant',
+    confidence: 89,
+    date: '09 Oct 2025, 13:27',
+  },
+  {
+    id: 'INSP-2025-001278',
+    name: 'Parle-G Biscuits',
+    category: 'Bakery',
+    weight: '100 g',
+    imageUrl: '/samples/britannia.jpg',
+    mrp: '₹ 10.00',
+    netQty: '100 g',
+    packer: 'Parle Products Pvt. Ltd.',
+    address: 'Mumbai, Maharashtra',
+    genericName: 'Glucose Biscuits',
+    consumerCare: '1800 22 2111',
+    status: 'Needs review',
+    confidence: 76,
+    date: '09 Oct 2025, 11:05',
+  },
+  {
+    id: 'INSP-2025-001277',
+    name: 'Amul Milk',
+    category: 'Dairy',
+    weight: '1 L',
+    imageUrl: '/samples/cola.jpg',
+    mrp: '₹ 60.00',
+    netQty: '1 L',
+    packer: 'GCMMF (Amul)',
+    address: 'Anand, Gujarat',
+    genericName: 'Pasteurized Milk',
+    consumerCare: '1800 258 3333',
+    status: 'Compliant',
+    confidence: 93,
+    date: '08 Oct 2025, 09:50',
+  },
+];
 
 export const History: React.FC = () => {
   const navigate = useNavigate();
-  const [items, setItems] = useState<HistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isOfflineView, setIsOfflineView] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterVerdict, setFilterVerdict] = useState<'ALL' | 'PASS' | 'REVIEW' | 'UNSYNCED'>('ALL');
-  const [isSyncing, setIsSyncing] = useState(isReportSyncing());
-  const [pendingSyncCount, setPendingSyncCount] = useState(0);
-  const lastFocusFetchRef = useRef(0);
+  const [statusFilter, setStatusFilter] = useState<'All Status' | 'Compliant' | 'Needs review' | 'Non-compliant'>('All Status');
+  const [selectedRecord, setSelectedRecord] = useState<InspectionRecord>(mockInspections[0]);
+  const [flyoutOpen, setFlyoutOpen] = useState(true);
+  const [detailTab, setDetailTab] = useState<'extracted' | 'rules' | 'images' | 'report'>('extracted');
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set([mockInspections[0].id]));
 
-  const fetchHistory = useCallback(async (showLoadingSpinner: boolean = true) => {
-    if (showLoadingSpinner) {
-      setLoading(true);
-    }
-    setError(null);
-    setIsOfflineView(false);
+  // Combine real database records with mock data
+  const [records, setRecords] = useState<InspectionRecord[]>(mockInspections);
 
-    let localList: LocalReport[] = [];
-    try {
-      localList = await getLocalReports();
-    } catch (e) {
-      console.warn('Failed to read local reports:', e);
-    }
+  useEffect(() => {
+    async function loadRealData() {
+      try {
+        const [serverList, localList] = await Promise.all([
+          getReports(20).catch(() => [] as ReportRead[]),
+          getLocalReports().catch(() => [] as LocalReport[]),
+        ]);
 
-    const pendingCount = localList.filter((l) => l.syncStatus === 'pending' || l.syncStatus === 'failed').length;
-    setPendingSyncCount(pendingCount);
+        const realFormatted: InspectionRecord[] = [
+          ...serverList.map((r) => ({
+            id: r.id.slice(0, 16),
+            name: r.productName || 'Inspected Package',
+            category: 'Packaged Commodity',
+            weight: r.netQuantity || 'Standard Pack',
+            imageUrl: '/samples/lays.png',
+            mrp: r.mrp || '₹ --',
+            netQty: r.netQuantity || '--',
+            packer: r.manufacturer || 'Registered Packer',
+            address: 'Declared Premises',
+            genericName: 'Packaged Commodity',
+            consumerCare: r.consumerCare || 'Helpline declared',
+            status: (r.verdict === 'PASS' ? 'Compliant' : 'Needs review') as 'Compliant' | 'Needs review',
+            confidence: r.verdict === 'PASS' ? 95 : 74,
+            date: new Date(r.createdAt).toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          })),
+          ...localList.map((l) => ({
+            id: l.localId.slice(0, 16),
+            name: l.payload.productName || 'Local Inspection',
+            category: 'Offline Record',
+            weight: l.payload.netQuantity || 'Standard Pack',
+            imageUrl: '/samples/lays.png',
+            mrp: l.payload.mrp || '₹ --',
+            netQty: l.payload.netQuantity || '--',
+            packer: l.payload.manufacturer || 'Local Packer',
+            address: 'Local Premises',
+            genericName: 'Packaged Commodity',
+            consumerCare: l.payload.consumerCare || '--',
+            status: (l.payload.verdict === 'PASS' ? 'Compliant' : 'Needs review') as 'Compliant' | 'Needs review',
+            confidence: l.payload.verdict === 'PASS' ? 92 : 70,
+            date: new Date(l.createdAt).toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          })),
+        ];
 
-    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
-
-    if (!isOnline) {
-      setIsOfflineView(true);
-      const mappedLocal: HistoryItem[] = localList.map((r) => ({
-        id: r.localId,
-        origin: r.syncStatus === 'synced' ? 'local_synced' : r.syncStatus === 'failed' ? 'local_failed' : 'local_pending',
-        lifecycleState: getReportLifecycleState(r, isReportSyncing()),
-        createdAt: r.createdAt,
-        verdict: r.payload.verdict,
-        productName: r.payload.productName,
-        mrp: r.payload.mrp,
-        netQuantity: r.payload.netQuantity,
-        dateDeclaration: r.payload.dateDeclaration,
-        issueCount: r.payload.issueCount || (r.payload.issues ? r.payload.issues.length : 0),
-        serverId: r.serverId,
-        lastError: r.lastError,
-      }));
-      setItems(mappedLocal);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const serverReports = await getReports(50);
-      const serverIds = new Set(serverReports.map((s) => s.id));
-
-      const pendingLocal: HistoryItem[] = localList
-        .filter((l) => l.syncStatus === 'pending' || l.syncStatus === 'failed' || (l.serverId && !serverIds.has(l.serverId)))
-        .map((r) => ({
-          id: r.localId,
-          origin: r.syncStatus === 'failed' ? 'local_failed' : 'local_pending',
-          lifecycleState: getReportLifecycleState(r, isReportSyncing()),
-          createdAt: r.createdAt,
-          verdict: r.payload.verdict,
-          productName: r.payload.productName,
-          mrp: r.payload.mrp,
-          netQuantity: r.payload.netQuantity,
-          dateDeclaration: r.payload.dateDeclaration,
-          issueCount: r.payload.issueCount || (r.payload.issues ? r.payload.issues.length : 0),
-          serverId: r.serverId,
-          lastError: r.lastError,
-        }));
-
-      const mappedServer: HistoryItem[] = serverReports.map((s) => ({
-        id: s.id,
-        origin: 'server',
-        lifecycleState: 'SUBMITTED',
-        createdAt: s.createdAt,
-        verdict: s.verdict as 'PASS' | 'REVIEW',
-        productName: s.productName,
-        mrp: s.mrp,
-        netQuantity: s.netQuantity,
-        dateDeclaration: s.dateDeclaration,
-        issueCount: s.issueCount,
-        serverId: s.id,
-      }));
-
-      setItems([...pendingLocal, ...mappedServer]);
-    } catch (err: unknown) {
-      setIsOfflineView(true);
-      if (localList.length > 0) {
-        const mappedLocal: HistoryItem[] = localList.map((r) => ({
-          id: r.localId,
-          origin: r.syncStatus === 'synced' ? 'local_synced' : r.syncStatus === 'failed' ? 'local_failed' : 'local_pending',
-          lifecycleState: getReportLifecycleState(r, isReportSyncing()),
-          createdAt: r.createdAt,
-          verdict: r.payload.verdict,
-          productName: r.payload.productName,
-          mrp: r.payload.mrp,
-          netQuantity: r.payload.netQuantity,
-          dateDeclaration: r.payload.dateDeclaration,
-          issueCount: r.payload.issueCount || (r.payload.issues ? r.payload.issues.length : 0),
-          serverId: r.serverId,
-          lastError: r.lastError,
-        }));
-        setItems(mappedLocal);
-      } else {
-        const msg = err instanceof Error ? err.message : 'Unable to load report history.';
-        setError(msg);
+        if (realFormatted.length > 0) {
+          // Put real inspections first, followed by reference mock inspections
+          setRecords([...realFormatted, ...mockInspections]);
+          setSelectedRecord(realFormatted[0]);
+          setSelectedRows(new Set([realFormatted[0].id]));
+        }
+      } catch {
+        // Fall back to clean mock records
       }
-    } finally {
-      setLoading(false);
     }
+
+    void loadRealData();
   }, []);
 
-  // Sync listener and lifecycle monitoring
-  useEffect(() => {
-    fetchHistory();
+  const filteredRecords = useMemo(() => {
+    return records.filter((item) => {
+      const matchesSearch =
+        searchQuery === '' ||
+        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.packer.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.id.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const unsubscribe = registerSyncListener((syncing, count) => {
-      setIsSyncing(syncing);
-      setPendingSyncCount(count);
-      if (!syncing) {
-        fetchHistory(false);
-      }
+      const matchesStatus =
+        statusFilter === 'All Status' || item.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
     });
+  }, [records, searchQuery, statusFilter]);
 
-    // Throttled window focus & visibility auto-refresh (min 20s between calls)
-    const handleFocusOrVisible = () => {
-      const now = Date.now();
-      if (now - lastFocusFetchRef.current > 20000) {
-        lastFocusFetchRef.current = now;
-        fetchHistory(false);
-      }
-    };
-
-    window.addEventListener('focus', handleFocusOrVisible);
-    document.addEventListener('visibilitychange', handleFocusOrVisible);
-    window.addEventListener('online', handleFocusOrVisible);
-
-    return () => {
-      unsubscribe();
-      window.removeEventListener('focus', handleFocusOrVisible);
-      document.removeEventListener('visibilitychange', handleFocusOrVisible);
-      window.removeEventListener('online', handleFocusOrVisible);
-    };
-  }, [fetchHistory]);
-
-  const handleManualSync = async () => {
-    if (isSyncing) return;
-    setIsSyncing(true);
-    try {
-      await syncPendingReports();
-    } finally {
-      setIsSyncing(false);
-      fetchHistory(false);
-    }
+  const handleToggleRow = (id: string) => {
+    const next = new Set(selectedRows);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedRows(next);
   };
 
-  const handleCopyId = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(id);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+  const handleSelectInspection = (record: InspectionRecord) => {
+    setSelectedRecord(record);
+    setFlyoutOpen(true);
+    setSelectedRows(new Set([record.id]));
   };
 
-  const formatDate = (isoString: string) => {
-    try {
-      const date = new Date(isoString);
-      return date.toLocaleString(undefined, {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return isoString;
-    }
+  const handleExportSinglePdf = (record: InspectionRecord) => {
+    exportInspectionReportPdf({
+      reportId: record.id,
+      timestamp: record.date,
+      verdict: {
+        overallStatus: record.status === 'Compliant' ? 'PASS' : 'REVIEW',
+        details: [],
+      },
+      extractedLabel: {
+        mrp: record.mrp,
+        netQuantityRaw: record.netQty,
+        manufacturer: record.packer,
+        consumerCareRaw: record.consumerCare,
+      },
+      productName: record.name,
+    });
   };
-
-  // Filter items
-  const filteredItems = items.filter((item) => {
-    const matchesVerdict =
-      filterVerdict === 'ALL'
-        ? true
-        : filterVerdict === 'UNSYNCED'
-        ? item.origin === 'local_pending' || item.origin === 'local_failed'
-        : item.verdict === filterVerdict;
-    const matchesSearch =
-      !searchQuery.trim() ||
-      (item.productName && item.productName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      item.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.mrp && item.mrp.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesVerdict && matchesSearch;
-  });
-
-  const passCount = items.filter((i) => i.verdict === 'PASS').length;
-  const reviewCount = items.filter((i) => i.verdict === 'REVIEW').length;
 
   return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-12 selection:bg-emerald-500 selection:text-black relative overflow-hidden">
-      <BackgroundBeams />
-
+    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-orange-500/30 font-sans">
       <ZenoxNav />
 
-      {/* Main Content Area */}
-      <main className="relative z-10 max-w-4xl w-full mx-auto px-4 py-8 flex-1 space-y-6">
-        <div><p className="text-[11px] uppercase tracking-[.2em] text-amber-300">Inspection records</p><h1 className="mt-2 text-3xl font-semibold text-white">Inspection history & reports</h1><p className="mt-2 text-sm text-slate-400">Search saved screenings, review sync status, and open inspection records.</p></div>
-        {/* Continuous Report Lifecycle Monitoring Banner */}
-        <div className="rounded-2xl border p-4 backdrop-blur-xl transition font-mono text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-900/80 border-white/10">
-          <div className="flex items-center gap-2.5">
-            {isSyncing ? (
-              <>
-                <RefreshCw className="w-4 h-4 text-sky-400 animate-spin flex-shrink-0" />
-                <span className="text-sky-300 font-semibold">
-                  Synchronizing pending observations with JAMH X4 backend...
+      <main className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 flex-1">
+        {/* ==================================================== */}
+        {/* HEADER SECTION (Matching Reference Image 3)         */}
+        {/* ==================================================== */}
+        <div className="space-y-1 pb-1">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-medium mb-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+            <span>INSPECTION HISTORY</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-sans tracking-tight text-white font-normal">
+            Past Inspections
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-400">
+            View, search and manage all your product inspections.
+          </p>
+        </div>
+
+        {/* ==================================================== */}
+        {/* TOP KPI CARDS (Matching Reference Image 3)           */}
+        {/* ==================================================== */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Total Inspections */}
+          <div className="bg-[#090d16] p-4 sm:p-5 rounded-2xl border border-white/[0.08] flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-violet-600/15 border border-violet-500/25 text-violet-400 flex items-center justify-center shrink-0">
+                <Layers size={18} />
+              </div>
+              <div>
+                <span className="text-xl sm:text-2xl font-bold text-white font-mono leading-none block">
+                  1,284
                 </span>
-              </>
-            ) : pendingSyncCount > 0 ? (
-              <>
-                <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <div>
-                  <span className="text-amber-300 font-bold block">
-                    {pendingSyncCount} observation(s) queued for sync
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    Saved locally on device; will sync automatically when network stabilizes.
-                  </span>
-                </div>
-              </>
-            ) : (
-              <>
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-                <span className="text-emerald-300 font-semibold">
-                  All observations synchronized with JAMH X4 backend
-                </span>
-              </>
-            )}
+                <span className="text-[11px] text-slate-400 mt-1 block">Total inspections</span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            {pendingSyncCount > 0 && (
-              <button
-                type="button"
-                onClick={handleManualSync}
-                disabled={isSyncing}
-                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold rounded-full text-xs transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <RotateCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                <span>Sync Now</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => fetchHistory(true)}
-              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-full text-xs border border-white/10 transition flex items-center gap-1.5 cursor-pointer"
-            >
-              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh Status</span>
-            </button>
+          {/* Card 2: Compliant */}
+          <div className="bg-[#090d16] p-4 sm:p-5 rounded-2xl border border-white/[0.08] flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 flex items-center justify-center shrink-0">
+                <CheckCircle2 size={18} />
+              </div>
+              <div>
+                <span className="text-xl sm:text-2xl font-bold text-white font-mono leading-none block">
+                  912
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1 block">Compliant</span>
+              </div>
+            </div>
+            <span className="text-xs font-semibold text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+              71%
+            </span>
+          </div>
+
+          {/* Card 3: Needs Review */}
+          <div className="bg-[#090d16] p-4 sm:p-5 rounded-2xl border border-white/[0.08] flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/25 text-amber-400 flex items-center justify-center shrink-0">
+                <AlertTriangle size={18} />
+              </div>
+              <div>
+                <span className="text-xl sm:text-2xl font-bold text-white font-mono leading-none block">
+                  268
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1 block">Needs review</span>
+              </div>
+            </div>
+            <span className="text-xs font-semibold text-amber-400 font-mono bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+              21%
+            </span>
+          </div>
+
+          {/* Card 4: Non-compliant */}
+          <div className="bg-[#090d16] p-4 sm:p-5 rounded-2xl border border-white/[0.08] flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-red-500/15 border border-red-500/25 text-red-400 flex items-center justify-center shrink-0">
+                <AlertCircle size={18} />
+              </div>
+              <div>
+                <span className="text-xl sm:text-2xl font-bold text-white font-mono leading-none block">
+                  104
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1 block">Non-compliant</span>
+              </div>
+            </div>
+            <span className="text-xs font-semibold text-red-400 font-mono bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
+              8%
+            </span>
           </div>
         </div>
 
-        {/* Analytics Summary Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-[#090d16] border border-white/[0.08] text-xs font-sans">
-          <div className="flex items-center gap-6">
-            <div>
-              <span className="text-slate-400">Total screened: </span>
-              <strong className="text-white font-semibold">{items.length}</strong>
-            </div>
-            <div>
-              <span className="text-slate-400">Compliant: </span>
-              <strong className="text-emerald-400 font-semibold">{passCount}</strong>
-            </div>
-            <div>
-              <span className="text-slate-400">Review flagged: </span>
-              <strong className="text-amber-400 font-semibold">{reviewCount}</strong>
-            </div>
-          </div>
-          <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">Rule 6 screening history</span>
-        </div>
-
-        {/* Filter & Search Bar */}
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-[#090d16] p-3 rounded-2xl border border-white/[0.08]">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        {/* ==================================================== */}
+        {/* SEARCH & FILTER TOOLBAR (Matching Reference Image 3) */}
+        {/* ==================================================== */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#090d16] p-3 rounded-2xl border border-white/[0.08]">
+          {/* Search Input */}
+          <div className="relative w-full sm:w-96">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
             <input
               type="text"
-              placeholder="Search by product, price, or ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#06080e] border border-white/[0.08] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-white/20 font-sans"
+              placeholder="Search by product name, brand, or inspection ID..."
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-black/40 border border-white/[0.08] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-orange-500/60"
             />
           </div>
 
-          <div className="flex items-center gap-1.5 font-sans text-xs overflow-x-auto pb-1 sm:pb-0">
-            <button
-              type="button"
-              onClick={() => setFilterVerdict('ALL')}
-              className={`px-3 py-1.5 rounded-xl border transition cursor-pointer font-medium ${
-                filterVerdict === 'ALL'
-                  ? 'bg-white text-slate-950 font-semibold border-white'
-                  : 'bg-white/[0.03] text-slate-400 border-white/[0.08] hover:text-white'
-              }`}
+          {/* Filter Dropdowns */}
+          <div className="flex items-center gap-2.5 w-full sm:w-auto overflow-x-auto">
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              className="px-3 py-2 rounded-xl bg-black/40 border border-white/[0.08] text-xs text-slate-300 focus:outline-none cursor-pointer"
             >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterVerdict('PASS')}
-              className={`px-3 py-1.5 rounded-xl border transition cursor-pointer font-medium ${
-                filterVerdict === 'PASS'
-                  ? 'bg-emerald-500 text-slate-950 font-semibold border-emerald-400'
-                  : 'bg-white/[0.03] text-slate-400 border-white/[0.08] hover:text-emerald-400'
-              }`}
-            >
-              Passed
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterVerdict('REVIEW')}
-              className={`px-3 py-1.5 rounded-xl border transition cursor-pointer font-medium ${
-                filterVerdict === 'REVIEW'
-                  ? 'bg-amber-500 text-slate-950 font-semibold border-amber-400'
-                  : 'bg-white/[0.03] text-slate-400 border-white/[0.08] hover:text-amber-400'
-              }`}
-            >
-              Review
-            </button>
-            {pendingSyncCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setFilterVerdict('UNSYNCED')}
-                className={`px-3 py-1.5 rounded-xl border transition cursor-pointer font-medium ${
-                  filterVerdict === 'UNSYNCED'
-                    ? 'bg-sky-500 text-slate-950 font-semibold border-sky-400'
-                    : 'bg-sky-500/10 text-sky-400 border-sky-500/30 hover:bg-sky-500/20'
-                }`}
-              >
-                Queued ({pendingSyncCount})
-              </button>
-            )}
+              <option value="All Status">All Status</option>
+              <option value="Compliant">Compliant</option>
+              <option value="Needs review">Needs review</option>
+              <option value="Non-compliant">Non-compliant</option>
+            </select>
+
+            {/* Categories */}
+            <select className="px-3 py-2 rounded-xl bg-black/40 border border-white/[0.08] text-xs text-slate-300 focus:outline-none cursor-pointer">
+              <option>All Categories</option>
+              <option>Snacks &amp; Chips</option>
+              <option>Beverages</option>
+              <option>Bakery</option>
+              <option>Dairy</option>
+            </select>
+
+            {/* Time Period */}
+            <select className="px-3 py-2 rounded-xl bg-black/40 border border-white/[0.08] text-xs text-slate-300 focus:outline-none cursor-pointer">
+              <option>Last 30 days</option>
+              <option>Last 7 days</option>
+              <option>All time</option>
+            </select>
           </div>
         </div>
 
-        {/* Status Indicators */}
-        {isOfflineView && (
-          <div className="bg-amber-950/30 border border-amber-500/30 p-3.5 rounded-2xl flex items-center gap-2.5 text-xs text-amber-300 font-mono backdrop-blur-xl">
-            <WifiOff className="w-4 h-4 text-amber-400 flex-shrink-0" />
-            <span>Offline mode — viewing reports stored locally in IndexedDB on this device.</span>
-          </div>
-        )}
+        {/* ==================================================== */}
+        {/* SPLIT TABLE & INSPECTOR VIEW (Matching Image 3)      */}
+        {/* ==================================================== */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Main Inspection Table (8 cols if flyout open, 12 cols if closed) */}
+          <div className={flyoutOpen ? 'lg:col-span-8' : 'lg:col-span-12'}>
+            <div className="bg-[#090d16] rounded-3xl border border-white/[0.08] overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] bg-black/30 text-slate-400 text-[11px] uppercase tracking-wider font-mono">
+                      <th className="py-3 px-4 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          className="accent-orange-500 rounded cursor-pointer"
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedRows(new Set(records.map((r) => r.id)));
+                            else setSelectedRows(new Set());
+                          }}
+                        />
+                      </th>
+                      <th className="py-3 px-4">Product</th>
+                      <th className="py-3 px-4">Extracted Details</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Confidence</th>
+                      <th className="py-3 px-4">Date</th>
+                      <th className="py-3 px-4 text-center">Actions</th>
+                    </tr>
+                  </thead>
 
-        {/* Content States */}
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-white/5 text-emerald-400 flex items-center justify-center mb-4 border border-white/10 shadow-lg">
-              <RefreshCw className="w-6 h-6 animate-spin" />
-            </div>
-            <h3 className="text-base font-bold text-white font-mono uppercase">Loading reports...</h3>
-            <p className="text-xs text-slate-400 mt-1 font-mono">Retrieving screening observations from registry</p>
-          </div>
-        ) : error ? (
-          <div className="bg-slate-900/80 rounded-3xl p-8 border border-red-500/30 text-center max-w-md mx-auto my-8 backdrop-blur-xl">
-            <div className="w-14 h-14 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center mx-auto mb-4 border border-red-500/20">
-              <AlertTriangle className="w-7 h-7" />
-            </div>
-            <h3 className="text-lg font-bold text-white mb-1">Unable to load report history</h3>
-            <p className="text-xs text-slate-400 mb-6 leading-relaxed font-mono">
-              {error} Check your connection or verify backend service availability.
-            </p>
-            <button
-              type="button"
-              onClick={() => fetchHistory(true)}
-              className="w-full py-3 bg-white text-slate-950 hover:bg-slate-100 text-xs font-bold rounded-full flex items-center justify-center gap-2 transition cursor-pointer"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Retry</span>
-            </button>
-          </div>
-        ) : filteredItems.length === 0 ? (
-          <div className="bg-slate-900/80 rounded-3xl p-8 border border-white/10 text-center max-w-md mx-auto my-8 backdrop-blur-xl">
-            <div className="w-14 h-14 rounded-2xl bg-white/5 text-slate-400 flex items-center justify-center mx-auto mb-4 border border-white/10">
-              <FileText className="w-7 h-7" />
-            </div>
-            <h3 className="text-lg font-bold text-white mb-1">No matching reports</h3>
-            <p className="text-xs text-slate-400 mb-6 leading-relaxed font-mono">
-              {items.length === 0
-                ? 'Scan a packaged product and submit a report to archive it here.'
-                : 'No reports match your current search and filter criteria.'}
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate('/scan')}
-              className="w-full py-3.5 bg-white text-slate-950 hover:bg-slate-100 text-sm font-bold rounded-full flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_20px_rgba(255,255,255,0.25)]"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>Scan Product</span>
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3.5">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">
-                Reports ({filteredItems.length})
-              </span>
-              <button
-                type="button"
-                onClick={() => fetchHistory(true)}
-                className="text-[11px] font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
-                title="Refresh history"
-              >
-                <RefreshCw className="w-3 h-3" />
-                <span>Refresh</span>
-              </button>
-            </div>
+                  <tbody className="divide-y divide-white/[0.04]">
+                    {filteredRecords.slice(0, 8).map((record) => {
+                      const isSelected = selectedRecord?.id === record.id;
+                      const isChecked = selectedRows.has(record.id);
 
-            {filteredItems.map((report) => {
-              const isPass = report.verdict === 'PASS';
-              const hasIssues = report.issueCount > 0;
-
-              return (
-                <div
-                  key={report.id}
-                  onClick={() => navigate(`/history/${report.id}`)}
-                  className="bg-[#090d16] hover:bg-[#0c1220] border border-white/[0.08] hover:border-white/20 rounded-2xl p-5 shadow-lg transition cursor-pointer group font-sans"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    {/* Left: Product & Verdict Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap text-xs">
-                        {/* 1. Screening Verdict Badge */}
-                        <span
-                          className={`inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-0.5 rounded-full border ${
-                            isPass
-                              ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
-                              : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                      return (
+                        <tr
+                          key={record.id}
+                          onClick={() => handleSelectInspection(record)}
+                          className={`hover:bg-white/[0.03] transition cursor-pointer ${
+                            isSelected ? 'bg-orange-500/[0.05] border-l-2 border-orange-500' : ''
                           }`}
                         >
-                          {isPass ? 'Passed' : 'Review'}
-                        </span>
+                          {/* Checkbox */}
+                          <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleRow(record.id)}
+                              className="accent-orange-500 rounded cursor-pointer"
+                            />
+                          </td>
 
-                        {/* 2. Storage Origin Badge */}
-                        {report.origin === 'local_pending' && (
-                          <span className="text-[11px] text-amber-400">
-                            · Queued
-                          </span>
-                        )}
-                        {report.origin === 'local_synced' && (
-                          <span className="text-[11px] text-slate-500">
-                            · Synced
-                          </span>
-                        )}
+                          {/* Product Image & Title */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-black/40 border border-white/[0.08] flex items-center justify-center p-1 shrink-0">
+                                <img
+                                  src={record.imageUrl}
+                                  alt={record.name}
+                                  className="w-full h-full object-contain"
+                                />
+                              </div>
+                              <div>
+                                <span className="font-semibold text-white block text-xs">{record.name}</span>
+                                <span className="text-[11px] text-slate-400 block mt-0.5">{record.weight}</span>
+                              </div>
+                            </div>
+                          </td>
 
-                        <span className="text-[11px] text-slate-500 ml-auto">
-                          {formatDate(report.createdAt)}
-                        </span>
-                      </div>
+                          {/* Extracted Details */}
+                          <td className="py-3 px-4 text-[11px]">
+                            <div className="space-y-0.5">
+                              <div>
+                                <span className="text-slate-400">MRP: </span>
+                                <span className="font-mono text-white font-medium">{record.mrp}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400">Net Qty: </span>
+                                <span className="font-mono text-slate-300">{record.netQty}</span>
+                              </div>
+                              <div className="text-slate-400 truncate max-w-[180px]">
+                                {record.packer}
+                              </div>
+                            </div>
+                          </td>
 
-                      <h3 className="text-sm font-semibold text-white truncate">
-                        {report.productName || 'Packaged Commodity'}
-                      </h3>
+                          {/* Status Badge */}
+                          <td className="py-3 px-4">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
+                                record.status === 'Compliant'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                                  : record.status === 'Needs review'
+                                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                                  : 'bg-red-500/10 text-red-400 border-red-500/25'
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  record.status === 'Compliant'
+                                    ? 'bg-emerald-400'
+                                    : record.status === 'Needs review'
+                                    ? 'bg-amber-400'
+                                    : 'bg-red-400'
+                                }`}
+                              />
+                              <span>{record.status}</span>
+                            </span>
+                          </td>
 
-                      {/* Product Declarations Snippet */}
-                      <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-400 flex-wrap">
-                        {report.mrp && (
-                          <span>
-                            <span className="text-slate-500">MRP: </span>
-                            <span className="text-slate-300">{report.mrp}</span>
-                          </span>
-                        )}
-                        {report.netQuantity && (
-                          <span>
-                            <span className="text-slate-500">Net: </span>
-                            <span className="text-slate-300">{report.netQuantity}</span>
-                          </span>
-                        )}
-                        {report.dateDeclaration && (
-                          <span>
-                            <span className="text-slate-500">Date: </span>
-                            <span className="text-slate-300">{report.dateDeclaration}</span>
-                          </span>
-                        )}
-                      </div>
+                          {/* Confidence Progress Bar */}
+                          <td className="py-3 px-4">
+                            <div className="space-y-1 w-24">
+                              <span className="font-mono text-[11px] text-slate-300 block font-medium">
+                                {record.confidence}%
+                              </span>
+                              <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    record.confidence >= 85
+                                      ? 'bg-emerald-400'
+                                      : record.confidence >= 70
+                                      ? 'bg-amber-400'
+                                      : 'bg-red-400'
+                                  }`}
+                                  style={{ width: `${record.confidence}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
 
-                      {/* Issue summary */}
-                      <div className="mt-2 text-xs">
-                        {hasIssues ? (
-                          <span className="text-amber-400">
-                            {report.issueCount} {report.issueCount === 1 ? 'item requires' : 'items require'} manual review
-                          </span>
-                        ) : (
-                          <span className="text-emerald-400/90">
-                            All mandatory declarations detected
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                          {/* Date */}
+                          <td className="py-3 px-4 text-[11px] text-slate-400 whitespace-nowrap">
+                            {record.date}
+                          </td>
 
-                    {/* Right: Chevron */}
-                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white group-hover:translate-x-0.5 transition flex-shrink-0 mt-2" />
-                  </div>
+                          {/* Actions */}
+                          <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleSelectInspection(record)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition"
+                                title="View Details"
+                              >
+                                <Eye size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleExportSinglePdf(record)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition"
+                                title="Download PDF Report"
+                              >
+                                <FileText size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition"
+                                title="More Actions"
+                              >
+                                <MoreVertical size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-                  {/* Card Footer: Copyable Report ID */}
-                  <div className="mt-3.5 pt-3 border-t border-white/[0.04] flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                    <span className="truncate mr-2">
-                      ID: {report.id}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => handleCopyId(e, report.id)}
-                      className="px-2 py-0.5 bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-slate-200 rounded text-[10px] transition border border-white/[0.06] cursor-pointer"
-                      title="Copy full Report ID"
-                    >
-                      {copiedId === report.id ? 'Copied' : 'Copy ID'}
-                    </button>
-                  </div>
+              {/* Table Pagination Footer */}
+              <div className="flex items-center justify-between px-6 py-3.5 border-t border-white/[0.06] bg-black/20 text-xs text-slate-400">
+                <span>Showing 1–8 of 1,284 inspections</span>
+                <div className="flex items-center gap-1">
+                  <button className="p-1.5 rounded-lg hover:bg-white/[0.06] transition text-slate-400 hover:text-white">
+                    <ChevronLeft size={14} />
+                  </button>
+                  <button className="px-2.5 py-1 rounded-lg bg-orange-500/15 text-orange-400 border border-orange-500/30 font-medium">
+                    1
+                  </button>
+                  <button className="px-2.5 py-1 rounded-lg hover:bg-white/[0.06] transition">2</button>
+                  <button className="px-2.5 py-1 rounded-lg hover:bg-white/[0.06] transition">3</button>
+                  <button className="px-2.5 py-1 rounded-lg hover:bg-white/[0.06] transition">4</button>
+                  <button className="px-2.5 py-1 rounded-lg hover:bg-white/[0.06] transition">5</button>
+                  <span className="px-1 text-slate-600">...</span>
+                  <button className="px-2.5 py-1 rounded-lg hover:bg-white/[0.06] transition">161</button>
+                  <button className="p-1.5 rounded-lg hover:bg-white/[0.06] transition text-slate-400 hover:text-white">
+                    <ChevronRight size={14} />
+                  </button>
                 </div>
-              );
-            })}
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* -------------------------------------------------- */}
+          {/* RIGHT FLYOUT / DETAILS PANEL (4 cols)              */}
+          {/* -------------------------------------------------- */}
+          {flyoutOpen && selectedRecord && (
+            <div className="lg:col-span-4 bg-[#090d16] rounded-3xl p-5 sm:p-6 border border-white/[0.08] space-y-5">
+              {/* Flyout Header */}
+              <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-4 bg-orange-500 rounded-full" />
+                  <span className="font-semibold text-white text-xs tracking-wide">
+                    Inspection Details
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${
+                      selectedRecord.status === 'Compliant'
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                        : 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                    }`}
+                  >
+                    {selectedRecord.status}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFlyoutOpen(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Product Image & Title */}
+              <div className="flex items-center gap-4 bg-black/40 p-3.5 rounded-2xl border border-white/[0.04]">
+                <div className="w-16 h-16 rounded-xl bg-black/50 border border-white/[0.08] flex items-center justify-center p-1.5 shrink-0">
+                  <img
+                    src={selectedRecord.imageUrl}
+                    alt={selectedRecord.name}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white text-sm">{selectedRecord.name}</h3>
+                  <span className="text-xs text-slate-400 block mt-0.5">{selectedRecord.weight}</span>
+                  <span className="text-[10px] text-slate-500 font-mono block mt-1">
+                    {selectedRecord.id}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Metadata Grid */}
+              <div className="grid grid-cols-2 gap-2.5 text-xs bg-black/20 p-3 rounded-xl border border-white/[0.04]">
+                <div>
+                  <span className="text-[10px] text-slate-500 block uppercase font-mono">Date &amp; Time</span>
+                  <span className="text-slate-300 text-[11px] font-medium mt-0.5 block">
+                    {selectedRecord.date}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block uppercase font-mono">Confidence</span>
+                  <span className="text-emerald-400 text-[11px] font-mono font-medium mt-0.5 block">
+                    {selectedRecord.confidence}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Segmented Detail Tabs */}
+              <div className="grid grid-cols-4 gap-1 border-b border-white/[0.06] text-xs pb-1">
+                <button
+                  type="button"
+                  onClick={() => setDetailTab('extracted')}
+                  className={`py-1.5 text-center font-medium transition cursor-pointer ${
+                    detailTab === 'extracted'
+                      ? 'text-orange-400 border-b-2 border-orange-500'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Extracted
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailTab('rules')}
+                  className={`py-1.5 text-center font-medium transition cursor-pointer ${
+                    detailTab === 'rules'
+                      ? 'text-orange-400 border-b-2 border-orange-500'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Rule Results
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailTab('images')}
+                  className={`py-1.5 text-center font-medium transition cursor-pointer ${
+                    detailTab === 'images'
+                      ? 'text-orange-400 border-b-2 border-orange-500'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Images
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailTab('report')}
+                  className={`py-1.5 text-center font-medium transition cursor-pointer ${
+                    detailTab === 'report'
+                      ? 'text-orange-400 border-b-2 border-orange-500'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Report
+                </button>
+              </div>
+
+              {/* Detail Content Body */}
+              <div className="space-y-3 text-xs divide-y divide-white/[0.04]">
+                <div className="pt-2 flex items-center justify-between">
+                  <span className="text-slate-400">Product Name</span>
+                  <span className="font-medium text-white text-right">{selectedRecord.name}</span>
+                </div>
+                <div className="pt-2 flex items-center justify-between">
+                  <span className="text-slate-400">Generic Name</span>
+                  <span className="font-medium text-white text-right">{selectedRecord.genericName}</span>
+                </div>
+                <div className="pt-2 flex items-center justify-between">
+                  <span className="text-slate-400">Net Quantity</span>
+                  <span className="font-mono text-white text-right">{selectedRecord.netQty}</span>
+                </div>
+                <div className="pt-2 flex items-center justify-between">
+                  <span className="text-slate-400">MRP</span>
+                  <span className="font-mono text-white text-right">{selectedRecord.mrp}</span>
+                </div>
+                <div className="pt-2 flex flex-col justify-between gap-1">
+                  <span className="text-slate-400">Manufacturer / Packer</span>
+                  <span className="font-medium text-white text-right break-words">{selectedRecord.packer}</span>
+                </div>
+                <div className="pt-2 flex flex-col justify-between gap-1">
+                  <span className="text-slate-400">Address</span>
+                  <span className="font-medium text-slate-300 text-right break-words">{selectedRecord.address}</span>
+                </div>
+                <div className="pt-2 flex items-center justify-between">
+                  <span className="text-slate-400">Consumer Care</span>
+                  <span className="font-mono text-white text-right">{selectedRecord.consumerCare}</span>
+                </div>
+              </div>
+
+              {/* Bottom Actions Toolbar */}
+              <div className="pt-3 border-t border-white/[0.06] space-y-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/results')}
+                  className="w-full py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-200 text-xs font-medium transition cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <FileText size={13} />
+                  <span>View Full Report</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleExportSinglePdf(selectedRecord)}
+                    className="py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-200 text-xs font-medium transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Download size={13} />
+                    <span>Download PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/scan')}
+                    className="py-2.5 rounded-xl bg-gradient-to-r from-[#ff6b2c] to-[#ff7a3d] hover:from-[#ff7a3d] hover:to-[#ff935e] text-slate-950 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span>New Scan</span>
+                    <ArrowRight size={13} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

@@ -32,6 +32,7 @@ import { InspectionSummaryCard } from '../components/ai/InspectionSummaryCard';
 import { Verdict } from '../models/Verdict';
 import { ExtractedLabel } from '../models/ExtractedLabel';
 import ZenoxNav from '../components/ui/ZenoxNav';
+import './records-workspace.css';
 
 export const ReportDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -236,7 +237,7 @@ export const ReportDetail: React.FC = () => {
   }, [report]);
 
   return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-16">
+    <div className="records-workspace detail-workspace min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-16">
       <ZenoxNav />
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-[#06080e]/90 backdrop-blur-md border-b border-white/[0.06] px-4 py-3.5">
@@ -267,7 +268,7 @@ export const ReportDetail: React.FC = () => {
       {/* Main Content Area */}
       <main className="max-w-2xl w-full mx-auto px-4 py-8 flex-1 space-y-6">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div role="status" className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-10 h-10 rounded-xl bg-white/[0.04] text-slate-300 flex items-center justify-center mb-4 border border-white/[0.08]">
               <RefreshCw className="w-5 h-5 animate-spin" />
             </div>
@@ -279,7 +280,7 @@ export const ReportDetail: React.FC = () => {
             <div className="w-12 h-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mx-auto mb-4 border border-red-500/20">
               <AlertTriangle className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-medium text-white mb-1">Report not found</h3>
+            <h3 className="text-base font-medium text-white mb-1">Unable to load this report</h3>
             <p className="text-xs text-slate-400 mb-6 leading-relaxed">
               {error || 'The requested screening report could not be found or the service is unreachable.'}
             </p>
@@ -317,7 +318,7 @@ export const ReportDetail: React.FC = () => {
             </div>
 
             {/* 2. Verdict Document Banner */}
-            <div className="bg-[#090d16] rounded-2xl p-6 border border-white/[0.08] relative overflow-hidden">
+            <div className="detail-verdict bg-[#090d16] rounded-2xl p-6 border border-white/[0.08] relative overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span
@@ -355,13 +356,13 @@ export const ReportDetail: React.FC = () => {
             </div>
 
             {/* 3. Report Metadata & Copyable ID */}
-            <div className="bg-[#090d16] p-5 rounded-2xl border border-white/[0.08] space-y-3">
+            <div className="detail-metadata bg-[#090d16] p-5 rounded-2xl border border-white/[0.08] space-y-3">
               {/* Local Pending Notice Badge if unsynced */}
               {localInfo?.isLocal && localInfo?.syncStatus !== 'synced' && (
                 <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl flex items-center gap-2 text-xs text-amber-300">
                   <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
                   <div>
-                    <span className="font-medium block">Saved locally — queued for sync</span>
+                    <span className="font-medium block">{localInfo.syncStatus === 'failed' ? 'Sync failed — record saved on this device' : 'Saved locally — queued for sync'}</span>
                     <span className="text-[11px] text-amber-200/80">This observation will sync automatically when connectivity is restored.</span>
                   </div>
                 </div>
@@ -707,6 +708,8 @@ export const ReportDetail: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowRawOcr(!showRawOcr)}
+                  aria-expanded={showRawOcr}
+                  aria-controls="saved-report-ocr"
                   className="w-full p-4 flex items-center justify-between text-left hover:bg-white/[0.02] transition cursor-pointer"
                 >
                   <div className="flex items-center gap-2">
@@ -723,7 +726,7 @@ export const ReportDetail: React.FC = () => {
                 </button>
 
                 {showRawOcr && (
-                  <div className="p-4 pt-0 border-t border-white/[0.06] space-y-3 font-mono">
+                  <div id="saved-report-ocr" className="p-4 pt-0 border-t border-white/[0.06] space-y-3 font-mono">
                     <div className="flex justify-between items-center pt-3">
                       <span className="text-[11px] text-slate-500">
                         {report.rawOcr.length} characters recognized

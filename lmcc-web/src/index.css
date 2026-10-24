@@ -3,6 +3,13 @@
 @tailwind utilities;
 
 :root {
+  --product-bg: #07060a;
+  --product-surface: #100e17;
+  --product-border: rgba(255,255,255,.09);
+  --product-text: #f2eff7;
+  --product-muted: #aaa3b6;
+  --product-accent: #ff7a3d;
+  --product-violet: #a58bff;
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
   color-scheme: dark;
 }
@@ -22,16 +29,25 @@ body {
   letter-spacing: -0.01em;
 }
 
-.jamex-nav-dock { isolation: isolate; }
-.jamex-dock-item { isolation: isolate; transform-origin: center bottom; }
-.jamex-dock-item:focus-visible { outline: 2px solid #ff873e; outline-offset: 4px; }
-.jamex-dock-tooltip {
-  position: absolute; z-index: 30; left: 50%; top: -18px; min-width: max-content; padding: 5px 9px;
-  border: 1px solid #ffffff1f; border-radius: 8px; color: #f4f1f7; background: #111018ed;
-  box-shadow: 0 6px 18px #0008; font: 10px/1.2 'Plus Jakarta Sans', sans-serif; pointer-events: none;
-  opacity: 0; transform: translate(-50%, 5px) scale(.9); transition: opacity .16s ease, transform .16s ease;
-}
-.jamex-dock-tooltip.is-visible { opacity: 1; transform: translate(-50%, 0) scale(1); }
+:where(a,button,input,select,textarea,summary):focus-visible { outline: 2px solid #ffad7d; outline-offset: 3px; }
+.product-navigation { position: sticky; top: 0; z-index: 50; width: 100%; background: #09080ef5; border-bottom: 1px solid var(--product-border); backdrop-filter: blur(14px); }
+.product-navigation-inner { max-width: 1600px; margin: auto; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.product-brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; color: var(--product-text); }
+.product-brand-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #22d3ee0b; color: #67e8f9; }
+.product-brand strong { display: flex; align-items: center; gap: 9px; font-size: 17px; letter-spacing: -.02em; }
+.product-brand small { color: #7be3a6; border: 1px solid #7be3a633; padding: 1px 6px; border-radius: 6px; font: 10px monospace; }
+.product-brand-caption { display: block; color: var(--product-muted); font-size: 10px; margin-top: 2px; }
+.product-navigation-links,.product-navigation-actions { display: flex; align-items: center; gap: 4px; }
+.product-nav-link { display: flex; align-items: center; gap: 7px; padding: 11px 9px; border: 1px solid transparent; border-radius: 9px; font-size: 11px; color: #bcb5c9; white-space: nowrap; transition: background .15s,color .15s; }
+.product-nav-link:hover { background: #ffffff06; color: #fff; }.product-nav-link.is-active { color: #ffb182; border-color: #ff7a3d40; background: #ff7a3d0b; }
+.product-scan-link { display: flex; align-items: center; gap: 8px; border-radius: 10px; padding: 12px 16px; background: var(--product-accent); color: #190c05; font-size: 11px; font-weight: 700; white-space: nowrap; }.product-scan-link:hover { background: #ff935e; }
+.product-help,.product-menu-toggle { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 9px; color: #bcb5c9; }.product-help:hover,.product-menu-toggle:hover { background: #ffffff0b; }
+.product-menu-toggle { display: none; border: 1px solid var(--product-border); }
+.product-mobile-menu { display: grid; grid-template-columns: 1fr 1fr; padding: 12px 20px 20px; gap: 5px; max-height: calc(100dvh - 75px); overflow-y: auto; border-top: 1px solid var(--product-border); }
+.product-skip { position: absolute; left: 15px; top: -100px; padding: 10px; background: #ff7a3d; color: #190c05; z-index: 100; }.product-skip:focus { top: 10px; }
+@media (max-width: 1279px) { .product-navigation-links { display: none; }.product-menu-toggle { display: grid; } }
+@media (min-width: 1280px) { .product-mobile-menu { display: none; } }
+@media (max-width: 560px) { .product-navigation-inner { padding: 12px 16px; gap: 8px; }.product-brand-caption { display: none; }.product-brand strong { font-size: 15px; }.product-brand-icon { width: 32px; height: 32px; }.product-help { display: none; }.product-scan-link { padding: 10px; }.product-scan-link span { display: none; }.product-scan-link svg:last-child { display: none; } }
 
 /* Hairline borders & refined editorial surfaces */
 .border-hairline {

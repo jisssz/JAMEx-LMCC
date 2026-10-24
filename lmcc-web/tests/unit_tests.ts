@@ -35,6 +35,12 @@ test('Fixture 1: Biscuit/snack package label extracts declarations and passes sc
   assert.strictEqual(verdict.potentialViolations.length, 0);
 });
 
+test('OCR duplicate rupee glyph before decimal MRP does not truncate the actual price', () => {
+  const ocrText = 'NET QUANTITY 52 g Ee ey hid MRP 2 20.00 ha olay (Incl. of all taxes) NET QUANTITY 52 g MRP 20.00 (Incl. of all taxes)';
+  const label = parseLabel(ocrText);
+  assert.strictEqual(label.mrp, '₹20.00');
+});
+
 // ----------------------------------------------------
 // Fixture 2: Shampoo / Cosmetic-style Package
 // ----------------------------------------------------

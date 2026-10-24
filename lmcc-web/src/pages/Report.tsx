@@ -11,8 +11,6 @@ import {
   RefreshCw,
   Copy,
   Check,
-  CheckSquare,
-  Square,
   ShieldAlert,
   ShieldCheck,
 } from 'lucide-react';
@@ -22,6 +20,7 @@ import { submitReport, ReportCreatePayload } from '../services/api';
 import { saveLocalReport } from '../services/storage/localReports';
 import SectionLabel from '../components/ui/SectionLabel';
 import ZenoxNav from '../components/ui/ZenoxNav';
+import './records-workspace.css';
 
 export const Report: React.FC = () => {
   const location = useLocation();
@@ -50,7 +49,7 @@ export const Report: React.FC = () => {
 
   if (!extractedLabel || !verdict) {
     return (
-      <div className="min-h-screen bg-[#06080e] text-white flex flex-col items-center justify-center p-6 text-center">
+      <div className="records-workspace min-h-screen bg-[#06080e] text-white flex flex-col items-center justify-center p-6 text-center">
         <div className="max-w-md w-full p-8 rounded-2xl bg-[#090d16] border border-white/[0.08] shadow-2xl">
           <h2 className="font-display text-2xl text-white mb-2 font-normal">
             No report data <span className="font-serif italic text-slate-400">available.</span>
@@ -151,7 +150,7 @@ export const Report: React.FC = () => {
 
   if (submitSuccess) {
     return (
-      <div className="min-h-screen bg-[#06080e] text-white flex flex-col justify-center items-center p-6">
+      <div className="records-workspace min-h-screen bg-[#06080e] text-white flex flex-col justify-center items-center p-6">
         <div className="w-full max-w-md bg-[#090d16] rounded-2xl p-8 border border-white/[0.08] shadow-2xl text-left">
           <div className="flex items-center gap-3 mb-5">
             <div
@@ -248,7 +247,7 @@ export const Report: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-16">
+    <div className="records-workspace observation-workspace min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-16">
       <ZenoxNav />
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-[#06080e]/90 backdrop-blur-md border-b border-white/[0.06] px-4 py-3.5">
@@ -280,7 +279,7 @@ export const Report: React.FC = () => {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="observation-form space-y-6">
           {/* Summary Box: REVIEW issues vs PASS concern */}
           {verdict.potentialViolations.length > 0 ? (
             <div className="bg-[#090d16] rounded-2xl p-5 border border-amber-500/20">
@@ -326,13 +325,14 @@ export const Report: React.FC = () => {
           {/* Form Fields Card */}
           <div className="bg-[#090d16] rounded-2xl p-6 border border-white/[0.08] shadow-sm space-y-5">
             <div>
-              <label className="block text-xs font-sans font-medium text-slate-300 mb-2 flex items-center gap-1.5">
+              <label htmlFor="observation-product" className="block text-xs font-sans font-medium text-slate-300 mb-2 flex items-center gap-1.5">
                 <Building2 className="w-3.5 h-3.5 text-slate-400" />
                 Product or Brand Name (Optional)
               </label>
               <input
                 type="text"
                 value={productName}
+                id="observation-product"
                 onChange={(e) => setProductName(e.target.value)}
                 placeholder="e.g. Parle-G Biscuit 100g or Brand Name"
                 className="w-full px-3.5 py-2.5 bg-black/40 border border-white/[0.08] focus:border-white/25 rounded-xl text-xs text-white placeholder:text-slate-600 font-sans outline-none transition"
@@ -340,13 +340,14 @@ export const Report: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-sans font-medium text-slate-300 mb-2 flex items-center gap-1.5">
+              <label htmlFor="observation-location" className="block text-xs font-sans font-medium text-slate-300 mb-2 flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-slate-400" />
                 Store / Retailer Location (Optional)
               </label>
               <input
                 type="text"
                 value={storeLocation}
+                id="observation-location"
                 onChange={(e) => setStoreLocation(e.target.value)}
                 placeholder="e.g. Supermarket, Sector 14, New Delhi"
                 className="w-full px-3.5 py-2.5 bg-black/40 border border-white/[0.08] focus:border-white/25 rounded-xl text-xs text-white placeholder:text-slate-600 font-sans outline-none transition"
@@ -354,12 +355,13 @@ export const Report: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-sans font-medium text-slate-300 mb-2 flex items-center gap-1.5">
+              <label htmlFor="observation-notes" className="block text-xs font-sans font-medium text-slate-300 mb-2 flex items-center gap-1.5">
                 <FileText className="w-3.5 h-3.5 text-slate-400" />
                 {isPassConcern ? 'Observed Physical Concern' : 'Additional Remarks / Context'}
               </label>
               <textarea
                 rows={3}
+                id="observation-notes"
                 value={userNotes}
                 onChange={(e) => setUserNotes(e.target.value)}
                 placeholder={
@@ -374,16 +376,9 @@ export const Report: React.FC = () => {
             {/* Voluntary Confirmation Checkbox */}
             <div className="pt-3 border-t border-white/[0.06]">
               <label
-                onClick={() => setConfirmedVoluntary(!confirmedVoluntary)}
                 className="flex items-start gap-3 cursor-pointer text-xs font-sans text-slate-300 select-none"
               >
-                <div className="mt-0.5 text-emerald-400 flex-shrink-0">
-                  {confirmedVoluntary ? (
-                    <CheckSquare className="w-4 h-4 text-emerald-400" />
-                  ) : (
-                    <Square className="w-4 h-4 text-slate-600" />
-                  )}
-                </div>
+                <input type="checkbox" checked={confirmedVoluntary} onChange={(event) => setConfirmedVoluntary(event.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-orange-400" />
                 <span className="text-[11px] leading-relaxed text-slate-400">
                   I confirm voluntary submission of this packaging observation for consumer compliance monitoring. No personal data or full-resolution photos are transmitted.
                 </span>
@@ -393,7 +388,7 @@ export const Report: React.FC = () => {
 
           {/* Error Message with Retry */}
           {errorMessage && (
-            <div className="p-4 bg-red-950/20 border border-red-500/20 rounded-xl text-xs text-red-300 space-y-2">
+            <div role="alert" className="p-4 bg-red-950/20 border border-red-500/20 rounded-xl text-xs text-red-300 space-y-2">
               <div className="flex items-center gap-2 font-medium">
                 <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
                 <span>Submission Notice</span>

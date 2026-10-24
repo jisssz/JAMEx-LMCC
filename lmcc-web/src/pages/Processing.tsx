@@ -10,7 +10,7 @@ import { detectBarcodeAcrossPanels } from '../services/barcode/barcodeDetector';
 import { lookupProductByBarcode } from '../services/barcode/productDatabaseService';
 import { performBarcodeCrossCheck } from '../services/barcode/barcodeCrossCheck';
 import { ProcessingIndicator } from '../components/ProcessingIndicator';
-import GlowBackground from '../components/ui/GlowBackground';
+import './inspection-workspace.css';
 import { parseLabel } from '../services/parser/fieldParser';
 
 // ── Panel-level processing states ────────────────────────────────────────────
@@ -421,11 +421,10 @@ export const Processing: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between p-4 selection:bg-emerald-500 selection:text-black font-sans">
-      <GlowBackground variant="subtle" />
+    <div className="inspection-page min-h-screen text-slate-100 flex flex-col justify-between p-4 selection:bg-violet-500/30 font-sans">
 
       {/* Top Bar */}
-      <header className="relative z-10 max-w-md mx-auto w-full pt-4 flex items-center justify-between">
+      <header className="relative z-10 max-w-5xl mx-auto w-full py-4 border-b border-white/10 flex items-center justify-between">
         <button
           type="button"
           onClick={handleRetake}
@@ -441,6 +440,7 @@ export const Processing: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center py-6">
+        <div className="w-full max-w-5xl mb-8"><p className="workspace-kicker">Screening workspace / On-device OCR</p><h1 className="workspace-title mt-2">Reading your evidence.</h1><p className="mt-3 text-sm text-slate-400">Recognize package text, merge declarations, then apply deterministic Rule 6 checks.</p></div>
         {/* 1. Empty OCR Result State */}
         {emptyOcr ? (
           <div className="w-full max-w-md bg-[#090d16] rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/[0.08] text-center">
@@ -530,12 +530,17 @@ export const Processing: React.FC = () => {
           </div>
         ) : (
           /* 3. Real-Time Processing Indicator */
-          <div className="w-full max-w-md flex flex-col items-center gap-4">
+          <div className="processing-workspace">
+            <section aria-label="Recognition progress" className="workspace-surface p-5">
             <ProcessingIndicator
               progress={progress}
               statusMessage={statusMessage}
               step={step}
             />
+            <p role="status" className="mt-4 text-xs text-slate-400">{statusMessage}</p>
+            </section>
+            <section className="space-y-4" aria-label="Package processing details">
+            <div className="workspace-surface p-5"><h2 className="results-section-title">Processing record</h2><p className="mt-3 text-sm text-slate-400">OCR language: <span className="text-white">{selectedLang.label}</span></p><p className="mt-2 text-xs leading-relaxed text-slate-400">Text recognition and rule evaluation run locally. Detected barcodes may be looked up in a public product catalog as a separate reference.</p></div>
 
             {/* Per-Panel Status HUD */}
             {panelProgress.length > 1 && (
@@ -588,6 +593,7 @@ export const Processing: React.FC = () => {
                 </div>
               </div>
             )}
+            </section>
           </div>
         )}
       </main>

@@ -5,6 +5,7 @@ import ZenoxNav from '../components/ui/ZenoxNav';
 import { getReports, ReportRead } from '../services/api';
 import { getLocalReports, LocalReport } from '../services/storage/localReports';
 import { exportInspectionReportCsv, exportInspectionReportPdf } from '../services/export/reportExporter';
+import './records-workspace.css';
 
 type ReportRow = {
   id: string;
@@ -129,7 +130,7 @@ export const Reports: React.FC = () => {
   }), [rows]);
 
   return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100">
+    <div className="records-workspace min-h-screen bg-[#06080e] text-slate-100">
       <ZenoxNav />
       <main className="mx-auto max-w-[1500px] px-4 pb-12 pt-8 sm:px-7 lg:px-10">
         <div className="mb-7 flex flex-wrap items-end justify-between gap-5">
@@ -154,19 +155,29 @@ export const Reports: React.FC = () => {
 
         {error && <div role="status" className="mb-4 flex items-center gap-2 rounded-xl border border-orange-400/20 bg-orange-400/[0.06] px-4 py-3 text-sm text-orange-200"><AlertCircle className="h-4 w-4 shrink-0" />{error}</div>}
 
-        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,.8fr)]">
+        <div className="reports-desktop-workspace">
+          <section className="report-configuration records-panel" aria-labelledby="configuration-title">
+            <p className="records-eyebrow">Export workspace</p>
+            <h2 id="configuration-title" className="mt-2 font-semibold">Report configuration</h2>
+            <p className="mt-2 text-sm text-slate-400">Choose a saved inspection, preview its evidence, and export a copy.</p>
+            <label className="mt-6 block text-xs text-slate-300" htmlFor="workspace-format">Document format</label>
+            <select id="workspace-format" value={format} onChange={(e) => setFormat(e.target.value as 'PDF' | 'CSV')} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm"><option value="PDF">PDF document</option><option value="CSV">CSV spreadsheet</option></select>
+            <p className="mt-3 text-xs text-slate-400">{format === 'PDF' ? 'Readable inspection document with saved findings.' : 'Tabular inspection data for spreadsheet review.'}</p>
+            <button onClick={download} disabled={!selected || loading} className="records-primary mt-5 w-full"><Download className="h-4 w-4" />Export {format}</button>
+            <div className="mt-6 border-t border-white/10 pt-4"><p className="records-eyebrow">Selected record</p><p className="mt-2 text-sm break-words">{selected?.productName || (selected ? 'Unspecified product' : 'No record selected')}</p><p className="mt-1 break-all text-xs text-slate-400">{selected?.id || 'Select a record from the inspection list.'}</p></div>
+          </section>
           <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#090e18]/90">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] p-4">
               <div><h2 className="font-semibold">Saved inspections</h2><p className="mt-1 text-xs text-slate-500">Records are loaded from your reporting service and this device.</p></div>
               <div className="flex gap-2">
-                <label className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search saved records" className="w-48 rounded-xl border border-white/10 bg-black/20 py-2 pl-9 pr-3 text-xs outline-none focus:border-orange-400/50" /></label>
+                 <label className="relative"><span className="sr-only">Search saved records</span><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search saved records" className="w-48 rounded-xl border border-white/10 bg-black/20 py-2 pl-9 pr-3 text-xs outline-none focus:border-orange-400/50" /></label>
                 <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by screening status" className="rounded-xl border border-white/10 bg-[#0b101c] px-3 text-xs text-slate-300 outline-none"><option value="ALL">All statuses</option><option value="PASS">PASS</option><option value="REVIEW">Review</option></select>
               </div>
             </div>
             <div className="divide-y divide-white/[0.06]">
               {loading ? <div className="flex items-center justify-center gap-2 p-12 text-sm text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin" />Loading saved reports…</div> : filtered.length ? filtered.map((row) => {
                 const active = row.id === selectedId;
-                return <button key={row.id} onClick={() => setSelectedId(row.id)} className={`grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-4 text-left transition hover:bg-white/[0.035] ${active ? 'bg-orange-400/[0.06] ring-1 ring-inset ring-orange-400/50' : ''}`}>
+                 return <button key={row.id} aria-pressed={active} onClick={() => setSelectedId(row.id)} className={`grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-4 text-left transition hover:bg-white/[0.035] ${active ? 'bg-orange-400/[0.06] ring-1 ring-inset ring-orange-400/50' : ''}`}>
                   <span className="min-w-0"><span className="flex items-center gap-2 truncate text-sm font-medium text-slate-100">{row.productName || 'Unspecified product'}{row.local && <span className="rounded-md border border-violet-400/20 bg-violet-400/[0.08] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-violet-300">This device</span>}</span><span className="mt-1 block truncate text-xs text-slate-400">{row.netQuantity || 'Quantity not recorded'}{row.mrp ? ` · ${row.mrp}` : ''}{row.manufacturer ? ` · ${row.manufacturer}` : ''}</span><span className="mt-1 flex items-center gap-1 text-[11px] text-slate-500"><Clock3 className="h-3 w-3" />{fmtDate(row.createdAt)}</span></span>
                   <span className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium ${row.verdict === 'PASS' ? 'border-emerald-400/20 bg-emerald-400/[0.07] text-emerald-300' : 'border-orange-400/20 bg-orange-400/[0.07] text-orange-300'}`}>{row.verdict === 'PASS' ? 'Screened PASS' : 'Needs review'}</span>
                 </button>;

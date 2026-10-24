@@ -1,212 +1,240 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Scale, Menu, X, ChevronRight, Sparkles, House, CircleHelp, History as HistoryIcon, BarChart3, WandSparkles, Map, ScanLine, FileText } from 'lucide-react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Badge } from './badge';
-import { Button } from './button';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Scale,
+  Menu,
+  X,
+  House,
+  LayoutDashboard,
+  ScanLine,
+  WandSparkles,
+  ShieldAlert,
+  Clock,
+  MapPin,
+  FileText,
+  Bell,
+  ArrowRight,
+  CircleHelp,
+} from 'lucide-react';
+import HowItWorksModal from './HowItWorksModal';
 
-interface ZenoxNavProps {
-  onOpenHowItWorks?: () => void;
+interface NavItem {
+  label: string;
+  path: string;
+  Icon: React.ElementType;
 }
 
-export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
-  const navigate = useNavigate();
+const navLinks: NavItem[] = [
+  { label: 'Home', path: '/', Icon: House },
+  { label: 'Dashboard', path: '/dashboard', Icon: LayoutDashboard },
+  { label: 'Scan Product', path: '/scan', Icon: ScanLine },
+  { label: 'Image Enhancement', path: '/image-enhancement', Icon: WandSparkles },
+  { label: 'Rules', path: '/rules', Icon: ShieldAlert },
+  { label: 'History', path: '/history', Icon: Clock },
+  { label: 'India Map', path: '/india-map', Icon: MapPin },
+  { label: 'Reports', path: '/reports', Icon: FileText },
+];
+
+export const ZenoxNav: React.FC<{ onOpenHowItWorks?: () => void }> = ({ onOpenHowItWorks }) => {
+  const [open, setOpen] = useState(false);
+  const [help, setHelp] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const location = useLocation();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [hoveredDockIndex, setHoveredDockIndex] = useState<number | null>(null);
-  const [focusedDockIndex, setFocusedDockIndex] = useState<number | null>(null);
-  const reducedMotion = useReducedMotion();
+  const navigate = useNavigate();
+  const toggle = useRef<HTMLButtonElement>(null);
 
-  const navLinks = [
-    { label: 'Home', path: '/', Icon: House },
-    { label: 'Dashboard', path: '/dashboard', Icon: BarChart3 },
-    { label: 'Scan Product', path: '/scan', Icon: ScanLine },
-    { label: 'Image Enhancement', path: '/image-enhancement', Icon: WandSparkles },
-    { label: 'Rules', path: '/rules', Icon: Scale },
-    { label: 'History', path: '/history', Icon: HistoryIcon },
-    { label: 'India Map', path: '/india-map', Icon: Map },
-    { label: 'Reports', path: '/reports', Icon: FileText },
-    { label: 'How it works', action: 'how-it-works', Icon: CircleHelp },
-    { label: 'Surveillance', path: '/authority-dashboard', Icon: BarChart3 },
-  ];
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
 
-  const handleNavClick = (link: typeof navLinks[0]) => {
-    setMobileMenuOpen(false);
-    if (link.action === 'how-it-works') {
-      if (onOpenHowItWorks) {
-        onOpenHowItWorks();
-      } else {
-        if (location.pathname !== '/') {
-          navigate('/#how-it-works');
-        } else {
-          const el = document.getElementById('how-it-works');
-          if (el) el.scrollIntoView({ behavior: 'smooth' });
-        }
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        toggle.current?.focus();
       }
-      return;
-    }
-    if (link.path) {
-      navigate(link.path);
-    }
-  };
+    };
+    document.addEventListener('keydown', close);
+    return () => document.removeEventListener('keydown', close);
+  }, [open]);
 
-  const isActive = (path?: string) => {
-    if (!path) return false;
-    if (path === '/') return location.pathname === '/';
-    if (path === '/authority-dashboard') return location.pathname === '/authority-dashboard' || location.pathname === '/authority';
-    return location.pathname.startsWith(path);
+  const showHelp = () => {
+    setOpen(false);
+    if (onOpenHowItWorks) onOpenHowItWorks();
+    else setHelp(true);
   };
 
   return (
-    <header className="sticky top-3 z-50 w-full px-3 sm:px-5 max-w-[1600px] mx-auto">
-      <nav className="relative flex items-center justify-between px-5 sm:px-7 py-3 rounded-full bg-[#080c16]/90 border border-white/[0.08] backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-all">
-        {/* Brand */}
-        <div
-          onClick={() => navigate('/')}
-          className="flex items-center gap-3 cursor-pointer group"
+    <>
+      <header className="sticky top-0 z-50 w-full bg-[#06080e]/95 backdrop-blur-md border-b border-white/[0.08]">
+        <a
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-[#ff7a3d] focus:text-slate-950 focus:rounded-md"
+          href="#product-content"
+          onClick={(event) => {
+            const main = document.querySelector('main');
+            if (main) {
+              event.preventDefault();
+              main.tabIndex = -1;
+              main.focus();
+              main.scrollIntoView({ behavior: 'instant' });
+            }
+          }}
         >
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500/20 via-violet-500/20 to-transparent border border-white/10 flex items-center justify-center text-emerald-400 group-hover:border-emerald-400/50 group-hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-300">
-            <Scale className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-          <span className="text-sm font-bold tracking-tight text-white font-sans">JAMH X</span>
-              <Badge variant="pass" className="text-[10px] px-1.5 py-0 uppercase">
-                LMCC
-              </Badge>
+          Skip to content
+        </a>
+
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+          {/* Brand Logo & Title */}
+          <Link to="/" className="flex items-center gap-3 shrink-0 group" aria-label="JAMH X Home">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center text-cyan-400 group-hover:border-cyan-400/40 transition shadow-sm shadow-cyan-500/10">
+              <Scale size={20} aria-hidden="true" />
             </div>
-            <span className="hidden sm:inline text-[11px] font-sans text-slate-400 -mt-0.5">
-              Legal Metrology Compliance
-            </span>
-          </div>
-        </div>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-white tracking-tight text-[15px] sm:text-base">JAMH X</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-mono font-medium text-emerald-400 leading-none">
+                  LMCC
+                </span>
+              </div>
+              <span className="text-[10px] sm:text-[11px] text-slate-400 font-sans tracking-normal -mt-0.5 hidden xs:block">
+                Legal Metrology Compliance
+              </span>
+            </div>
+          </Link>
 
-        {/* Desktop Menu Links */}
-        <div
-          className="jamex-nav-dock hidden lg:flex items-center gap-0.5 bg-white/[0.03] p-1 rounded-full border border-white/[0.05]"
-          onMouseLeave={() => setHoveredDockIndex(null)}
-        >
-          {navLinks.map((link, index) => {
-            const active = isActive(link.path);
-            const Icon = link.Icon;
-            const emphasizedIndex = hoveredDockIndex ?? focusedDockIndex;
-            const distance = emphasizedIndex === null ? Infinity : Math.abs(index - emphasizedIndex);
-            const scale = reducedMotion ? 1 : distance === 0 ? 1.22 : distance === 1 ? 1.1 : 1;
-            const lift = reducedMotion ? 0 : distance === 0 ? -7 : distance === 1 ? -3 : 0;
-            return (
-              <motion.button
-                key={link.label}
-                type="button"
-                onClick={() => handleNavClick(link)}
-                onMouseEnter={() => setHoveredDockIndex(index)}
-                onFocus={() => setFocusedDockIndex(index)}
-                onBlur={() => setFocusedDockIndex(null)}
-                animate={{ scale, y: lift }}
-                transition={{ type: 'spring', stiffness: 420, damping: 26, mass: 0.55 }}
-                aria-label={link.label}
-                aria-current={active ? 'page' : undefined}
-                className={`jamex-dock-item relative flex h-10 px-2.5 items-center justify-center gap-1.5 text-[11px] 2xl:text-xs font-sans font-medium cursor-pointer rounded-full ${
-                  active ? 'text-white' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {active && (
-                  <motion.div
-                    layoutId="nav-active-pill"
-                    className="absolute inset-0 bg-white/[0.1] border border-white/[0.12] rounded-full shadow-sm"
-                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-                  />
-                )}
-                <Icon className="relative z-10 h-[18px] w-[18px]" aria-hidden="true" />
-                <span className="relative z-10 hidden whitespace-nowrap 2xl:inline">{link.label}</span>
-                <span className={`jamex-dock-tooltip ${distance === 0 || focusedDockIndex === index ? 'is-visible' : ''}`} aria-hidden="true">{link.label}</span>
-              </motion.button>
-            );
-          })}
-        </div>
-
-        {/* Desktop Right CTA */}
-        <div className="hidden md:flex items-center gap-3">
-          <Button
-            size="sm"
-            variant="glass"
-            onClick={() => navigate('/scan')}
-            className="jamex-scan-cta rounded-full px-5 text-xs font-semibold gap-2 border-emerald-500/30 hover:border-emerald-500/60 hover:bg-emerald-500/10 text-white"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Scan Product</span>
-            <span className="text-slate-400 font-normal">→</span>
-          </Button>
-        </div>
-
-        {/* Mobile Hamburger Button */}
-        <div className="flex items-center gap-2 lg:hidden">
-          <Button
-            size="sm"
-            variant="glass"
-            onClick={() => navigate('/scan')}
-            className="rounded-full px-3 py-1 text-xs font-semibold gap-1"
-          >
-            <span>Scan</span>
-            <span>→</span>
-          </Button>
-
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-full text-slate-300 hover:text-white bg-white/5 border border-white/10 transition-colors"
-            aria-label="Toggle navigation menu"
-          >
-            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-          </button>
-        </div>
-      </nav>
-
-      {/* Mobile Drawer Menu */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.98 }}
-            transition={{ duration: 0.2 }}
-            className="md:hidden mt-2 p-5 rounded-3xl bg-[#090d16]/95 border border-white/[0.08] backdrop-blur-3xl shadow-2xl space-y-2 text-sm font-sans"
-          >
-            {navLinks.map((link) => {
-              const active = isActive(link.path);
+          {/* Desktop Navigation Links */}
+          <nav aria-label="Main navigation" className="hidden xl:flex items-center gap-1.5">
+            {navLinks.map(({ label, path, Icon }) => {
+              const isActive =
+                path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
               return (
-                <button
-                  key={link.label}
-                  type="button"
-                  onClick={() => handleNavClick(link)}
-                  className={`w-full text-left py-2.5 px-3 rounded-xl transition-all flex items-center justify-between ${
-                    active
-                      ? 'bg-white/10 text-white font-semibold'
-                      : 'hover:bg-white/5 text-slate-300'
+                <NavLink
+                  key={path}
+                  to={path}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition duration-150 ${
+                    isActive
+                      ? 'border border-[#ff7a3d]/50 bg-[#ff7a3d]/10 text-[#ff935e]'
+                      : 'text-slate-300 hover:text-white hover:bg-white/[0.05] border border-transparent'
                   }`}
                 >
-                  <span>{link.label}</span>
-                  <ChevronRight className="w-4 h-4 text-slate-500" />
-                </button>
+                  <Icon size={14} className={isActive ? 'text-[#ff7a3d]' : 'text-slate-400'} aria-hidden="true" />
+                  <span>{label}</span>
+                </NavLink>
               );
             })}
-            <div className="pt-2">
-              <Button
-                variant="default"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  navigate('/scan');
-                }}
-                className="w-full py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2"
+          </nav>
+
+          {/* Right Action Group: Scan Product CTA, Notifications, Profile Avatar, Mobile Menu Toggle */}
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+            {/* Primary Orange Scan Button */}
+            <button
+              type="button"
+              onClick={() => navigate('/scan')}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#ff6b2c] to-[#ff7a3d] hover:from-[#ff7a3d] hover:to-[#ff935e] text-slate-950 font-semibold text-xs transition shadow-md shadow-orange-500/20 active:scale-[0.98] cursor-pointer"
+            >
+              <ScanLine size={14} className="stroke-[2.5]" aria-hidden="true" />
+              <span className="hidden sm:inline">Scan Product</span>
+              <ArrowRight size={13} className="stroke-[2.5]" aria-hidden="true" />
+            </button>
+
+            {/* Notification Bell */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                className="w-8 h-8 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] flex items-center justify-center text-slate-300 hover:text-white transition cursor-pointer relative"
+                aria-label="View notifications (1 unread)"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>Start Product Inspection</span>
-                <span>→</span>
-              </Button>
+                <Bell size={15} />
+                <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                  1
+                </span>
+              </button>
+
+              {notificationsOpen && (
+                <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-[#090d16] border border-white/[0.1] shadow-2xl p-4 text-xs z-50 space-y-2">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                    <span className="font-semibold text-white">Notifications</span>
+                    <span className="text-[10px] text-slate-400">1 unread</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.04] space-y-1">
+                    <div className="flex items-center gap-1.5 text-amber-400 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                      <span>Statutory Advisory</span>
+                    </div>
+                    <p className="text-slate-300 text-[11px] leading-relaxed">
+                      Rule 6(1)(d) post-dated package advisory flagged for recent batch INSP-2025-001284.
+                    </p>
+                    <span className="text-[10px] text-slate-500">10 mins ago</span>
+                  </div>
+                </div>
+              )}
             </div>
-          </motion.div>
+
+            {/* User Profile Avatar */}
+            <div
+              className="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-600 via-indigo-600 to-purple-500 text-white font-semibold text-xs flex items-center justify-center border border-white/20 shadow-sm"
+              title="Signed in as Inspector J"
+            >
+              J
+            </div>
+
+            {/* Mobile Hamburger Toggle */}
+            <button
+              ref={toggle}
+              type="button"
+              onClick={() => setOpen(!open)}
+              className="xl:hidden w-8 h-8 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] flex items-center justify-center text-slate-300 hover:text-white transition cursor-pointer"
+              aria-expanded={open}
+              aria-controls="product-mobile-menu"
+              aria-label={open ? 'Close navigation menu' : 'Open navigation menu'}
+            >
+              {open ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Dropdown Navigation */}
+        {open && (
+          <nav
+            id="product-mobile-menu"
+            className="xl:hidden border-t border-white/[0.08] bg-[#06080e]/98 px-4 py-4 space-y-1.5"
+            aria-label="Mobile navigation"
+          >
+            {navLinks.map(({ label, path, Icon }) => {
+              const isActive =
+                path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
+              return (
+                <NavLink
+                  key={path}
+                  to={path}
+                  onClick={() => setOpen(false)}
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition ${
+                    isActive
+                      ? 'border border-[#ff7a3d]/40 bg-[#ff7a3d]/10 text-[#ff935e]'
+                      : 'text-slate-300 hover:text-white hover:bg-white/[0.04]'
+                  }`}
+                >
+                  <Icon size={16} className={isActive ? 'text-[#ff7a3d]' : 'text-slate-400'} aria-hidden="true" />
+                  <span>{label}</span>
+                </NavLink>
+              );
+            })}
+            <button
+              type="button"
+              onClick={showHelp}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04]"
+            >
+              <CircleHelp size={16} className="text-slate-400" />
+              <span>How it works</span>
+            </button>
+          </nav>
         )}
-      </AnimatePresence>
-    </header>
+      </header>
+
+      {!onOpenHowItWorks && <HowItWorksModal isOpen={help} onClose={() => setHelp(false)} />}
+    </>
   );
 };
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   UploadCloud,
   ShieldCheck,
@@ -21,6 +21,7 @@ import InspectionStudio from '../components/hero/InspectionStudio';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
+import './reference-workspace.css';
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -32,7 +33,7 @@ export const Home: React.FC = () => {
       num: '01',
       title: 'Maximum Retail Price',
       rule: 'Rule 6(1)(da)',
-      desc: 'Mandatory declaration of retail price inclusive of all taxes, with explicit standard currency designation (₹ or Rs.) and unit sale price.',
+      desc: 'Review the declared retail price, currency and inclusive-of-tax wording, with unit sale price where applicable.',
       gazette: 'G.S.R. 629(E)',
       badgeVariant: 'pass' as const,
     },
@@ -40,7 +41,7 @@ export const Home: React.FC = () => {
       num: '02',
       title: 'Net Quantity',
       rule: 'Rule 6(1)(c)',
-      desc: 'Standard metric measurement (g, kg, ml, l) with uniform spacing and proper decimal formatting compliant with SI units.',
+      desc: 'Check the declared quantity and unit against the photographed label, including goods sold by count.',
       gazette: 'Standard SI Units',
       badgeVariant: 'pass' as const,
     },
@@ -48,7 +49,7 @@ export const Home: React.FC = () => {
       num: '03',
       title: 'Date of Manufacture / Packing',
       rule: 'Rule 6(1)(d)',
-      desc: 'Month and year indication with explicit statutory prefix (MFD, PKD) and strict prohibition of post-dated declarations.',
+      desc: 'Locate manufacturing or packing dates and review unclear, missing or conflicting date evidence.',
       gazette: 'MM/YYYY or DD/MM/YYYY',
       badgeVariant: 'cyan' as const,
     },
@@ -63,8 +64,8 @@ export const Home: React.FC = () => {
     {
       num: '05',
       title: 'Consumer Care Details',
-      rule: 'Rule 6(1)(e)',
-      desc: 'Accessible consumer grievance contact details: telephone helpline number, email, or postal grievance redressal address.',
+      rule: 'Rule 6(1)(n)',
+      desc: 'Review the declared consumer contact name, address, telephone number and email alongside the package evidence.',
       gazette: 'Toll-free / Customer Care',
       badgeVariant: 'review' as const,
     },
@@ -77,7 +78,7 @@ export const Home: React.FC = () => {
       <ZenoxNav onOpenHowItWorks={() => setIsHowItWorksOpen(true)} />
 
       {/* Main Container */}
-      <main className="relative z-10 w-full max-w-[1440px] mx-auto px-5 sm:px-8 pt-12 pb-12 sm:pt-20 sm:pb-20 space-y-28 sm:space-y-36">
+      <main className="home-refined relative z-10 w-full max-w-[1440px] mx-auto px-5 sm:px-8 pt-10 pb-12 sm:pt-12 sm:pb-16 space-y-16 sm:space-y-20">
         {/* ==================================================== */}
         {/* HERO SECTION */}
         {/* ==================================================== */}
@@ -117,7 +118,7 @@ export const Home: React.FC = () => {
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>Start Live Scan</span>
-                  <ArrowRight className="w-4 h-4 text-violet-200" />
+                  <ArrowRight className="w-4 h-4" />
                 </Button>
 
                 <Button
@@ -176,10 +177,10 @@ export const Home: React.FC = () => {
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-1.5 text-xs font-mono text-emerald-400 uppercase tracking-wider mb-2">
-                <span>Statutory Scope</span>
+                <span>Screening scope</span>
               </div>
               <h2 className="section-display text-white text-3xl sm:text-4xl font-normal tracking-tight">
-                Mandatory Declarations Under <span className="font-display-italic text-slate-300">Rule 6</span>
+                Five declarations to review.
               </h2>
             </div>
             <Button
@@ -215,7 +216,7 @@ export const Home: React.FC = () => {
                     </p>
                   </div>
                   <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-slate-500">
-                    <span>Gazette Citation</span>
+                    <span>Reference context</span>
                     <span className="text-slate-400">{rule.gazette}</span>
                   </div>
                 </div>
@@ -237,13 +238,13 @@ export const Home: React.FC = () => {
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
               <div className="text-xs font-mono text-violet-400 uppercase tracking-wider mb-2">
-                Market Intelligence
+                Inspection toolkit
               </div>
               <h2 className="section-display text-white text-3xl sm:text-4xl font-normal tracking-tight">
-                Surveillance at <span className="font-display-italic text-slate-300">Scale.</span>
+                From evidence to review.
               </h2>
               <p className="mt-2 text-sm text-slate-400 max-w-md font-sans">
-                Aggregated, zero-PII compliance telemetry helping consumer safety authorities detect systemic declaration omissions.
+                Review package photographs, revisit saved reports, and explore clearly labelled demonstration views.
               </p>
             </div>
             <Button
@@ -252,7 +253,7 @@ export const Home: React.FC = () => {
               className="rounded-full gap-2 self-start md:self-auto"
             >
               <BarChart3 className="w-4 h-4 text-violet-400" />
-              <span>Explore Surveillance Dashboard</span>
+              <span>View demo surveillance</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           </div>
@@ -263,12 +264,12 @@ export const Home: React.FC = () => {
               <div className="font-display text-4xl text-white font-normal mt-2">Multi-panel</div>
               <p className="text-xs text-slate-400 mt-2 font-sans">Combine declarations from multiple package photographs.</p>
             </Card>
-            <Card className="p-7 cursor-pointer hover:border-violet-400/30" role="button" tabIndex={0} onClick={() => navigate('/image-enhancement')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate('/image-enhancement'); }}>
+            <Link to="/image-enhancement" className="home-tool-link p-7">
               <WandSparkles className="h-5 w-5 text-violet-300"/><span className="mt-3 block text-[11px] font-mono text-slate-500 uppercase tracking-wider">Image Enhancement</span><div className="mt-2 font-display text-2xl text-white">Local tools</div><p className="mt-2 text-xs text-slate-400">Review quality and compare a deterministic working copy.</p>
-            </Card>
-            <Card className="p-7 cursor-pointer hover:border-cyan-400/30" role="button" tabIndex={0} onClick={() => navigate('/india-map')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate('/india-map'); }}>
+            </Link>
+            <Link to="/india-map" className="home-tool-link p-7">
               <Map className="h-5 w-5 text-cyan-300"/><span className="mt-3 block text-[11px] font-mono text-slate-500 uppercase tracking-wider">India Compliance Map</span><div className="mt-2 font-display text-2xl text-white">Jurisdictions</div><p className="mt-2 text-xs text-slate-400">Browse states and territories; geographic evidence is clearly scoped.</p>
-            </Card>
+            </Link>
 
             <Card className="p-7">
               <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider block">Rule Screening</span>
@@ -301,7 +302,7 @@ export const Home: React.FC = () => {
             </h2>
 
             <p className="text-sm text-slate-400 leading-relaxed font-sans max-w-md">
-              Capture commodity packaging with your device camera or upload label photographs for instantaneous statutory validation.
+              Capture a package with your camera or upload label photographs. Review extracted declarations and screening findings before saving a report.
             </p>
 
             <div className="pt-2 flex flex-wrap items-center justify-center gap-3.5 w-full">
@@ -309,7 +310,7 @@ export const Home: React.FC = () => {
                 size="lg"
                 variant="default"
                 onClick={() => navigate('/scan')}
-                className="rounded-full px-8 gap-2"
+                className="reference-primary rounded-full px-8 gap-2"
               >
                 <Sparkles className="w-4 h-4" />
                 <span>Start Camera Scan</span>

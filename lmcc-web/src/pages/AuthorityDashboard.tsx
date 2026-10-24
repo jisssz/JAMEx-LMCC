@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   ShieldCheck,
   Download,
@@ -29,6 +29,7 @@ import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { sanitizeCsvCell } from '../services/export/reportExporter';
 import { jsPDF } from 'jspdf';
+import './records-workspace.css';
 
 export const AuthorityDashboard: React.FC = () => {
   const [useDemoData, setUseDemoData] = useState<boolean>(true);
@@ -40,10 +41,17 @@ export const AuthorityDashboard: React.FC = () => {
   const [categories, setCategories] = useState<CategoriesBreakdown | null>(null);
   const [trends, setTrends] = useState<TrendsResponse | null>(null);
   const [brands, setBrands] = useState<BrandsResponse | null>(null);
+  const requestVersion = useRef(0);
 
   const fetchAllAnalytics = useCallback(async (demoMode: boolean) => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setErrorMessage(null);
+    setSummary(null);
+    setIssues(null);
+    setCategories(null);
+    setTrends(null);
+    setBrands(null);
     try {
       const [sumRes, issRes, catRes, trnRes, brnRes] = await Promise.all([
         getAnalyticsSummary(demoMode),
@@ -52,20 +60,19 @@ export const AuthorityDashboard: React.FC = () => {
         getAnalyticsTrends(demoMode),
         getAnalyticsBrands(demoMode),
       ]);
+      if (version !== requestVersion.current) return;
       setSummary(sumRes);
       setIssues(issRes);
       setCategories(catRes);
       setTrends(trnRes);
       setBrands(brnRes);
     } catch (err: unknown) {
+      if (version !== requestVersion.current) return;
       console.warn('Analytics fetch error:', err);
       const msg = err instanceof Error ? err.message : 'Unable to connect to live analytics API.';
-      setErrorMessage(`${msg} Showing demonstration dataset.`);
-      if (!demoMode) {
-        setUseDemoData(true);
-      }
+      setErrorMessage(`${msg} Retry or choose ${demoMode ? 'Live Registry' : 'Demo Reference'} to request another data source.`);
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, []);
 
@@ -198,7 +205,7 @@ export const AuthorityDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-cyan-500 selection:text-black relative overflow-hidden">
+    <div className="records-workspace authority-workspace min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-cyan-500 selection:text-black relative overflow-hidden">
       {/* Ambient Lighting */}
       <BackgroundBeams />
       <Spotlight className="-top-40 right-0 md:right-40 md:-top-20" fill="#06b6d4" />
@@ -218,10 +225,10 @@ export const AuthorityDashboard: React.FC = () => {
                 <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
                 <span>Market Surveillance Intelligence</span>
               </Badge>
-              {summary?.isDemonstrationData ? (
+              {useDemoData || summary?.isDemonstrationData ? (
                 <Badge variant="review">Demonstration Reference Dataset</Badge>
               ) : (
-                <Badge variant="pass">Live Registry</Badge>
+                <Badge variant="pass">{summary ? 'Live Registry' : 'Live Registry · not loaded'}</Badge>
               )}
             </div>
             <h1 className="hero-display text-white text-3xl sm:text-4xl font-normal tracking-tight">
@@ -239,6 +246,7 @@ export const AuthorityDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setUseDemoData(true)}
+                aria-pressed={useDemoData}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                   useDemoData
                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -250,6 +258,7 @@ export const AuthorityDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setUseDemoData(false)}
+                aria-pressed={!useDemoData}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                   !useDemoData
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
@@ -298,17 +307,17 @@ export const AuthorityDashboard: React.FC = () => {
         {/* ==================================================== */}
         {/* DEMO NOTICE BANNER */}
         {/* ==================================================== */}
-        {summary?.isDemonstrationData && (
+        {(useDemoData || summary?.isDemonstrationData) && (
           <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3 text-xs text-amber-200">
             <Info className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
             <div className="leading-relaxed">
-              <strong>Demonstration Reference Dataset Active:</strong> Displaying illustrative pilot surveillance telemetry. To inspect live records persisted in your PostgreSQL database, switch the toggle above to <strong>Live Registry</strong>.
+               <strong>DEMO — simulated reference dataset.</strong> This mode requests illustrative surveillance telemetry, separate from saved inspections. Choose <strong>Live Registry</strong> for operational records.
             </div>
           </div>
         )}
 
         {errorMessage && (
-          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex items-start gap-3 text-xs text-rose-200">
+          <div role="alert" className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex items-start gap-3 text-xs text-rose-200">
             <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
             <div className="leading-relaxed">{errorMessage}</div>
           </div>
@@ -317,6 +326,8 @@ export const AuthorityDashboard: React.FC = () => {
         {/* ==================================================== */}
         {/* KPI METRIC CARDS */}
         {/* ==================================================== */}
+        {loading && <p role="status" className="records-panel text-sm text-slate-300">Loading {useDemoData ? 'demonstration' : 'live registry'} analytics…</p>}
+        {!loading && summary?.totalScans === 0 && <p role="status" className="records-panel text-sm text-slate-300">No screenings are available in this dataset yet.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="p-5 border-white/[0.08] hover:border-cyan-500/30 transition-all">
             <div className="flex items-center justify-between text-slate-400 text-xs font-mono">
@@ -342,7 +353,7 @@ export const AuthorityDashboard: React.FC = () => {
             </div>
             <div className="text-[11px] text-slate-400 mt-2 font-sans flex items-center justify-between">
               <span>Compliance Rate</span>
-              <span className="font-mono text-emerald-400 font-semibold">{summary?.passRate}%</span>
+              <span className="font-mono text-emerald-400 font-semibold">{summary ? `${summary.passRate}%` : '—'}</span>
             </div>
           </Card>
 
@@ -397,6 +408,7 @@ export const AuthorityDashboard: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent className="p-0 space-y-3 pt-2">
+              {!loading && !issues?.items.length && <p className="text-sm text-slate-400">{errorMessage ? 'Issue data unavailable.' : 'No declaration omissions recorded.'}</p>}
               {issues?.items.map((issue) => (
                 <div key={issue.field} className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-2">
                   <div className="flex items-center justify-between text-xs">
@@ -426,6 +438,7 @@ export const AuthorityDashboard: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent className="p-0 space-y-3 pt-2">
+              {!loading && !categories?.items.length && <p className="text-sm text-slate-400">{errorMessage ? 'Sector data unavailable.' : 'No sector observations recorded.'}</p>}
               {categories?.items.map((cat) => {
                 const compliancePct = Math.max(0, 100 - cat.reviewRate);
                 return (
@@ -517,6 +530,7 @@ export const AuthorityDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
+                {!loading && !brands?.items.length && <tr><td colSpan={5} className="p-6 text-center text-slate-400">{errorMessage ? 'Manufacturer data unavailable. Use Refresh to retry.' : 'No manufacturers recorded in this dataset.'}</td></tr>}
                 {brands?.items.map((b, idx) => (
                   <tr key={idx} className="hover:bg-white/[0.02] transition">
                     <td className="py-3 px-3 font-medium text-slate-200">{b.manufacturer}</td>

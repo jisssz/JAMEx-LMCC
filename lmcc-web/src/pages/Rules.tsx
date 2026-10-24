@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ZenoxNav from '../components/ui/ZenoxNav';
-import { BackgroundBeams } from '../components/ui/background-beams';
 import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Scale, CheckCircle2, Sparkles, ArrowRight, Search, Bot } from 'lucide-react';
 import { ComplianceCopilotSheet } from '../components/copilot/ComplianceCopilotSheet';
+import './reference-workspace.css';
 
 export const Rules: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [selectedRule, setSelectedRule] = useState('01');
+  const [category, setCategory] = useState('all');
 
   const rulesData = [
     {
@@ -82,9 +84,11 @@ export const Rules: React.FC = () => {
   ];
 
   const filteredRules = rulesData.filter((r) => {
+    if (category !== 'all' && category !== r.num) return false;
     if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.trim().toLowerCase();
     return (
+      (r.num === '04' && 'mrp price'.includes(q)) ||
       r.title.toLowerCase().includes(q) ||
       r.rule.toLowerCase().includes(q) ||
       r.citation.toLowerCase().includes(q) ||
@@ -92,110 +96,83 @@ export const Rules: React.FC = () => {
       r.criteria.some((c) => c.toLowerCase().includes(q))
     );
   });
+  const activeRule = filteredRules.find(rule => rule.num === selectedRule) ?? filteredRules[0];
 
   return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-black relative overflow-hidden">
-      <BackgroundBeams />
+    <div className="reference-workspace rules-workspace min-h-screen text-slate-100">
       <ZenoxNav />
 
-      <main className="relative z-10 w-full max-w-4xl mx-auto px-5 sm:px-8 py-12 sm:py-20 space-y-16">
+      <main className="reference-main">
         {/* Editorial Header */}
-        <div className="space-y-4 pt-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-medium">
+        <header className="reference-header mb-8">
+          <div>
+          <div className="inline-flex items-center gap-2 text-violet-300 text-xs font-medium">
             <Scale className="w-3.5 h-3.5" />
-            <span>Legal Metrology Gazette Reference</span>
+            <span>Legal Metrology · Reference library</span>
           </div>
-          <h1 className="hero-display text-white tracking-tight">
-            Statutory <br />
-            <span className="font-display-italic text-slate-300">declarations.</span>
-          </h1>
+          <h1>Know the declarations.</h1>
           <p className="text-base sm:text-lg text-slate-400 max-w-2xl leading-relaxed font-sans font-normal">
-            The Legal Metrology (Packaged Commodities) Rules, 2011 mandate explicit packaging disclosures on all pre-packaged commodities sold in India. The LMCC engine programmatically audits packages against the five core statutory declarations below.
+            Browse the five declaration references available in LMCC. Search a topic, select a reference, and review its screening criteria.
           </p>
-        </div>
+          </div>
+        </header>
+        <div className="rules-layout">
 
         {/* Interactive Statutory Search & Copilot Trigger */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10">
+        <aside className="reference-panel rules-browser" aria-label="Find a declaration">
+          <label htmlFor="rule-search" className="reference-eyebrow">Search references</label>
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
+              id="rule-search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search rules, G.S.R. notifications (e.g. 779(E)), or clauses..."
-              className="w-full pl-9 pr-3.5 py-2 text-xs bg-black/40 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-teal-500 transition-colors"
+              placeholder="Topic, clause or citation…"
+              className="w-full pl-9 pr-3.5 py-3 text-xs bg-black/20 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:border-violet-400 transition-colors"
             />
           </div>
+          <label htmlFor="rule-category" className="mt-4 block text-xs text-slate-400">Declaration category</label>
+          <select id="rule-category" value={category} onChange={event => setCategory(event.target.value)} className="reference-select">
+            <option value="all">All declarations</option>
+            {rulesData.map(rule => <option key={rule.num} value={rule.num}>{rule.title}</option>)}
+          </select>
+          <p role="status" className="my-4 text-xs text-slate-400">{filteredRules.length} of {rulesData.length} references</p>
+          <nav aria-label="Declaration references" className="space-y-2">
+            {filteredRules.map(rule => <button key={rule.num} type="button" aria-current={activeRule?.num === rule.num ? 'true' : undefined} onClick={() => setSelectedRule(rule.num)} className="rule-choice"><span className="text-xs text-violet-300">{rule.rule}</span><span className="mt-1 block text-sm">{rule.title}</span></button>)}
+          </nav>
+          {(searchQuery || category !== 'all') && <Button variant="ghost" className="mt-3 w-full" onClick={() => { setSearchQuery(''); setCategory('all'); }}>Clear filters</Button>}
+        </aside>
+        <section aria-label="Selected declaration" className="min-w-0">
+          {!activeRule ? <div className="reference-panel reference-empty"><h2>No matching references</h2><p className="mt-2 text-sm text-slate-400">Try “MRP”, “quantity”, or clear your filters.</p></div> : <Card className="reference-panel p-6 sm:p-8">
+            <p className="reference-eyebrow">Declaration {activeRule.num} / 05</p>
+            <h2 className="mt-4">{activeRule.title}</h2>
+            <Badge variant="outline" className="mt-4">{activeRule.rule}</Badge>
+            <p className="mt-5 text-sm leading-7 text-slate-300">{activeRule.summary}</p>
+            <div className="mt-7 border-t border-white/10 pt-6"><h3 className="text-sm font-semibold">Screening criteria</h3><ul className="mt-4 space-y-4">{activeRule.criteria.map(criterion => <li key={criterion} className="flex gap-3 text-sm leading-6 text-slate-300"><CheckCircle2 aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-violet-300"/>{criterion}</li>)}</ul></div>
+            <p className="mt-7 text-xs leading-6 text-slate-400">These are the app’s reference summaries, not the full statutory text. Applicability and amendments require source verification.</p>
+          </Card>}
+        </section>
+        <aside className="reference-panel rules-help" aria-label="Source and help">
+          <p className="reference-eyebrow">Source context</p>
+          <h2 className="mt-3">Legal Metrology</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-400">Packaged Commodities Rules, 2011</p>
+          {activeRule && <dl className="mt-5 space-y-2 text-xs leading-6"><dt className="text-slate-400">Citation recorded in this library</dt><dd className="text-violet-200">{activeRule.citation}</dd></dl>}
+          <p className="mt-4 text-xs leading-6 text-slate-400">The full gazette document is not included in this library.</p>
+          <div className="my-6 border-t border-white/10"/>
+          <h3 className="mb-3 text-sm font-semibold">Need help interpreting a label?</h3>
           <button
             type="button"
             onClick={() => setIsCopilotOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 text-xs font-medium border border-teal-500/30 transition-colors cursor-pointer shrink-0"
+            className="flex w-full items-center justify-center gap-1.5 px-4 py-3 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 text-xs font-medium border border-violet-500/30 transition-colors cursor-pointer"
           >
-            <Bot className="w-4 h-4 text-teal-400" />
+            <Bot className="w-4 h-4 text-violet-300" />
             <span>Consult AI Copilot</span>
           </button>
+          <Button className="reference-primary mt-3 w-full" onClick={() => navigate('/scan')}><Sparkles className="mr-2 h-4 w-4"/>Scan a package<ArrowRight className="ml-2 h-4 w-4"/></Button>
+        </aside>
         </div>
 
-        {/* Gazette Criteria List */}
-        <div className="space-y-6">
-          {filteredRules.length === 0 ? (
-            <div className="p-8 text-center rounded-2xl bg-white/[0.02] border border-white/10 text-xs text-slate-400">
-              No statutory rules matched "{searchQuery}". Try searching "MRP", "quantity", or "G.S.R. 779(E)".
-            </div>
-          ) : (
-            filteredRules.map((rule) => (
-            <Card key={rule.num} className="p-6 sm:p-8 space-y-5 border-white/[0.08] hover:border-emerald-500/30 transition-all">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-xs font-mono text-emerald-400 font-bold">§ {rule.num}</span>
-                  <Badge variant="pass" className="text-[11px] font-mono">{rule.rule}</Badge>
-                </div>
-                <Badge variant="outline" className="text-[10px] font-mono text-slate-400">{rule.citation}</Badge>
-              </div>
-
-              <div>
-                <h2 className="text-xl sm:text-2xl font-semibold text-white tracking-tight font-sans">
-                  {rule.title}
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-400 mt-2 leading-relaxed">
-                  {rule.summary}
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-white/[0.06] space-y-2">
-                <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider block">Compliance Audit Criteria</span>
-                <ul className="space-y-1.5 text-xs text-slate-300 font-sans">
-                  {rule.criteria.map((c, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                      <span>{c}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </Card>
-          )))}
-        </div>
-
-        {/* Bottom Call to Action */}
-        <div className="rounded-3xl bg-gradient-to-r from-emerald-950/30 via-[#0c101d] to-violet-950/30 border border-emerald-500/20 p-8 sm:p-12 text-center shadow-xl space-y-5">
-          <h2 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight">
-            Ready to test packaging against <span className="font-display-italic text-emerald-300">these rules?</span>
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto font-sans leading-relaxed">
-            Upload or photograph package panels to screen compliance against all Rule 6 statutory requirements.
-          </p>
-          <Button
-            size="lg"
-            variant="default"
-            onClick={() => navigate('/scan')}
-            className="rounded-full px-8 gap-2"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Open Package Scanner</span>
-            <ArrowRight className="w-4 h-4" />
-          </Button>
-        </div>
       </main>
 
       <footer className="relative z-10 w-full border-t border-white/[0.08] bg-[#06080e] py-8 text-xs text-slate-500 font-sans">

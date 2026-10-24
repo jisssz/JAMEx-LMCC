@@ -172,9 +172,17 @@ export function parseLabel(rawText: string): ExtractedLabel {
     if (/\b(?:MRP|M\.R\.P\.|(?:MAX\.?|MAXIMUM)?\s*RETAIL\s*PRICE)\b/i.test(line) || /(?:अधिकतम\s*खुदरा\s*मूल्य|एम\.?आर\.?पी)/u.test(line)) {
       const match = line.match(mrpExplicitRegex);
       if (match && match[1]) {
-        const val = parseFloat(match[1]);
+        // Tesseract can read the ₹ glyph as a stray "2" before the actual decimal price
+        // (for example, "MRP 2 20.00"). Prefer the immediately following decimal amount
+        // in that narrow OCR-artifact shape instead of recording the glyph as ₹2.
+        const remainder = line.slice((match.index || 0) + match[0].length);
+        const duplicateGlyphAmount = !match[1].includes('.')
+          ? remainder.match(/^\s*(\d+\.\d{1,2})(?=\s|$|\()/)?.[1]
+          : undefined;
+        const amount = duplicateGlyphAmount || match[1];
+        const val = parseFloat(amount);
         if (val > 0 && val < 500000) {
-          mrp = `₹${match[1]}`;
+          mrp = `₹${amount}`;
           mrpEvidence = line.trim();
           mrpMethod = 'explicit_prefix';
           break;

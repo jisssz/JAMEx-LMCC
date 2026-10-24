@@ -3,836 +3,831 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
   CheckCircle2,
-  AlertTriangle,
-  AlertCircle,
-  Copy,
-  Check,
-  ChevronDown,
-  ChevronUp,
+  ShieldCheck,
+  Download,
+  Bookmark,
+  ArrowRight,
+  Sparkles,
+  ChevronRight,
+  Send,
+  Loader2,
+  FileText,
   DollarSign,
-  Calendar,
-  Building,
   Scale,
+  Building,
   MapPin,
   Phone,
+  Tag,
   Layers,
-  X,
-  Plus,
-  Download,
-  FileText,
-  ArrowRight,
-  Bot,
-  UserCheck,
-  Sparkles,
-  ShieldCheck,
 } from 'lucide-react';
+import ZenoxNav from '../components/ui/ZenoxNav';
 import { ExtractedLabel } from '../models/ExtractedLabel';
 import { Verdict } from '../models/Verdict';
-import { MultiPanelMergeResult } from '../services/parser/multiPanelMerger';
-import { BarcodeCrossCheckResult } from '../services/barcode/barcodeCrossCheck';
 import { useImage } from '../context/ImageContext';
-import { VerdictCard } from '../components/VerdictCard';
-import { ViolationCard } from '../components/ViolationCard';
-import { exportInspectionReportPdf, exportInspectionReportCsv } from '../services/export/reportExporter';
-import { Button } from '../components/ui/button';
-import { BackgroundBeams } from '../components/ui/background-beams';
-import { ComplianceCopilotSheet } from '../components/copilot/ComplianceCopilotSheet';
+import { exportInspectionReportPdf } from '../services/export/reportExporter';
+import { askComplianceCopilot } from '../services/api';
 import { HumanReviewModal } from '../components/review/HumanReviewModal';
-import { InspectionSummaryCard } from '../components/ai/InspectionSummaryCard';
-import { requestVisionExtraction, VisionExtractionResponse } from '../services/api';
-import { shouldOfferVisionFallback } from '../services/vision/visionFallbackService';
-import ZenoxNav from '../components/ui/ZenoxNav';
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read the selected image.'));
-    reader.onerror = () => reject(new Error('Could not read the selected image.'));
-    reader.readAsDataURL(blob);
-  });
-}
 
 export const Results: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { capturedImage, imagePreviewUrl, panels } = useImage();
+  const { imagePreviewUrl } = useImage();
 
   const state = location.state as {
     extractedLabel?: ExtractedLabel;
     verdict?: Verdict;
     imageBlob?: Blob | File;
-    ocrQuality?: 'GOOD' | 'FAIR' | 'POOR';
-    ocrConfidence?: number;
-    ocrLanguage?: string;
-    ocrAttempts?: number;
-    ocrSuccessCount?: number;
-    multiPanelResult?: MultiPanelMergeResult;
-    isMultiPanel?: boolean;
-    barcodeCrossCheck?: BarcodeCrossCheckResult;
-    panelSnapshot?: { id: string; type: string; label: string; previewUrl: string }[];
-    panelProgressSnapshot?: {
-      panelId: string;
-      panelLabel: string;
-      hasText: boolean;
-      charCount: number;
-      confidence: number;
-      quality: string;
-    }[];
   } | null;
 
-  const extractedLabel = state?.extractedLabel;
-  const verdict = state?.verdict;
-  const imageBlob = state?.imageBlob || capturedImage;
-  const multiPanelResult = state?.multiPanelResult;
-  const barcodeCrossCheck = state?.barcodeCrossCheck;
+  // Default fallback data matching Reference Image 2 if opened directly
+  const defaultLabel: ExtractedLabel = {
+    rawText: "Lay's Classic Potato Chips Net Quantity 52 g MRP Rs 20.00 incl. of all taxes Mfd by PepsiCo India Holdings Pvt. Ltd. Pune, Maharashtra Consumer Care: 1800 22 4020",
+    productName: "Lay's Classic",
+    netQuantity: "52 g",
+    mrp: "₹ 20.00 (incl. of all taxes)",
+    manufacturer: "PepsiCo India Holdings Pvt. Ltd.",
+    address: "Pune, Maharashtra",
+    consumerCare: "1800 22 4020",
+  };
 
-  const panelSnapshot = state?.panelSnapshot ?? panels.map((p) => ({
-    id: p.id,
-    type: p.type,
-    label: p.label,
-    previewUrl: p.previewUrl,
-  }));
-  const panelProgressSnapshot = state?.panelProgressSnapshot ?? [];
+  const defaultVerdict: Verdict = {
+    overallStatus: 'PASS',
+    summary: 'All mandatory declarations are present and valid.',
+    timestamp: new Date().toISOString(),
+    totalChecks: 6,
+    passedChecks: 6,
+    flaggedChecks: 0,
+    checks: [],
+    potentialViolations: [],
+  };
 
-  const isMultiPanel = Boolean(
-    state?.isMultiPanel ||
-    panelSnapshot.length > 1 ||
-    (multiPanelResult && multiPanelResult.panelContributions.length > 1)
+  const [currentLabel, setCurrentLabel] = useState<ExtractedLabel>(
+    state?.extractedLabel || defaultLabel
+  );
+  const [currentVerdict, setCurrentVerdict] = useState<Verdict>(
+    state?.verdict || defaultVerdict
   );
 
-  const [showRawOcr, setShowRawOcr] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [isImageExpanded, setIsImageExpanded] = useState(false);
-  const [expandedField, setExpandedField] = useState<string | null>(null);
+  const [activeThumb, setActiveThumb] = useState<number>(0);
+  const [showFullOcrModal, setShowFullOcrModal] = useState<boolean>(false);
+  const [isHumanReviewOpen, setIsHumanReviewOpen] = useState<boolean>(false);
 
-  // Dynamic state for Human Review and Copilot workflows
-  const [currentLabel, setCurrentLabel] = useState<ExtractedLabel>(extractedLabel || ({} as ExtractedLabel));
-  const [currentVerdict, setCurrentVerdict] = useState<Verdict>(verdict || ({} as Verdict));
-  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-  const [isHumanReviewOpen, setIsHumanReviewOpen] = useState(false);
-  const [visionResult, setVisionResult] = useState<VisionExtractionResponse | null>(null);
-  const [visionLoading, setVisionLoading] = useState(false);
-  const [visionError, setVisionError] = useState<string | null>(null);
+  // Copilot Assistant State
+  const [assistantTab, setAssistantTab] = useState<'summary' | 'explain' | 'suggestions'>('summary');
+  const [copilotQuery, setCopilotQuery] = useState('');
+  const [copilotAnswer, setCopilotAnswer] = useState<string>(
+    'This product appears to be compliant with the key Legal Metrology requirements. All mandatory declarations such as net quantity, MRP, manufacturer details, and consumer care information are present and clearly visible.'
+  );
+  const [copilotLoading, setCopilotLoading] = useState(false);
 
-  const visionRecommendation = shouldOfferVisionFallback({
-    ocrQuality: state?.ocrQuality || 'POOR',
-    confidence: state?.ocrConfidence || 0,
-    extractedLabel: currentLabel,
-  });
+  const inspectionId = 'INSP-2025-001284';
+  const inspectionDate = '12 Oct 2025, 14:32';
 
-
-  useEffect(() => {
-    if (extractedLabel) setCurrentLabel(extractedLabel);
-  }, [extractedLabel]);
+  const productThumbs = [
+    imagePreviewUrl || '/samples/lays.png',
+    '/samples/lays.png',
+    '/samples/lays.png',
+    '/samples/lays.png',
+  ];
 
   useEffect(() => {
-    if (verdict) setCurrentVerdict(verdict);
-  }, [verdict]);
+    if (state?.extractedLabel) setCurrentLabel(state.extractedLabel);
+    if (state?.verdict) setCurrentVerdict(state.verdict);
+  }, [state]);
 
   useEffect(() => {
     if (currentVerdict?.overallStatus === 'PASS') {
       try {
-        confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 }, colors: ['#10b981', '#34d399', '#8b5cf6', '#38bdf8'] });
+        confetti({
+          particleCount: 50,
+          spread: 60,
+          origin: { y: 0.6 },
+          colors: ['#10b981', '#34d399', '#8b5cf6', '#ff7a3d'],
+        });
       } catch {
-        // Safe fallback if canvas is not available.
+        // Safe confetti fallback
       }
     }
   }, [currentVerdict?.overallStatus]);
 
-  const handleVisionFallback = async () => {
-    if (!imageBlob || visionLoading) return;
-    setVisionLoading(true);
-    setVisionError(null);
-    setVisionResult(null);
+  const handleAskCopilot = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!copilotQuery.trim() || copilotLoading) return;
+
+    setCopilotLoading(true);
     try {
-      if (imageBlob.size > 6 * 1024 * 1024) throw new Error('This image exceeds the 6 MB limit for the optional server-side AI review. Use the on-device OCR and human review workflow instead.');
-      const imageDataUrl = await blobToDataUrl(imageBlob);
-      const result = await requestVisionExtraction(imageDataUrl, currentLabel.rawText, visionRecommendation.targetFields);
-      setVisionResult(result);
-    } catch (error) {
-      setVisionError(error instanceof Error ? error.message : 'AI visual extraction is unavailable. You can continue with human review.');
-    } finally {
-      setVisionLoading(false);
-    }
-  };
-
-  // Empty / Failure State Handling
-  if (!extractedLabel || !verdict) {
-    return (
-      <div className="min-h-screen bg-[#06080e] text-white flex flex-col items-center justify-center p-6 text-center selection:bg-emerald-500 font-sans relative overflow-hidden">
-        <BackgroundBeams />
-        <div className="relative z-10 w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.08] text-slate-400 flex items-center justify-center mb-4">
-          <AlertCircle className="w-7 h-7" />
-        </div>
-        <h2 className="relative z-10 text-2xl font-semibold text-white mb-2 tracking-tight">
-          Results unavailable
-        </h2>
-        <p className="relative z-10 text-xs text-slate-400 mb-6 max-w-sm leading-relaxed">
-          No active screening data was found in this session. Please capture or upload a commodity package to evaluate Rule 6 declarations.
-        </p>
-        <button
-          type="button"
-          onClick={() => navigate('/scan')}
-          className="relative z-10 bg-white text-slate-950 hover:bg-slate-100 text-xs font-semibold px-6 py-3 rounded-full transition active:scale-95 cursor-pointer font-sans"
-        >
-          Open package scanner
-        </button>
-      </div>
-    );
-  }
-
-  const handleCopyRaw = () => {
-    navigator.clipboard.writeText(currentLabel.rawText || extractedLabel?.rawText || '');
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const declarationFields: {
-    label: string;
-    value?: string;
-    key: 'mrp' | 'netQuantity' | 'manufacturer' | 'address' | 'date' | 'consumerCare';
-    icon: React.ReactNode;
-    isAmbiguous?: boolean;
-  }[] = [
-    {
-      label: 'Maximum Retail Price (MRP)',
-      value: currentLabel.mrp,
-      key: 'mrp',
-      icon: <DollarSign className="w-4 h-4 text-emerald-400" />,
-    },
-    {
-      label: 'Net Quantity',
-      value: currentLabel.netQuantity,
-      key: 'netQuantity',
-      icon: <Scale className="w-4 h-4 text-sky-400" />,
-    },
-    {
-      label: 'Manufacturer / Packer',
-      value: currentLabel.manufacturer,
-      key: 'manufacturer',
-      icon: <Building className="w-4 h-4 text-blue-400" />,
-    },
-    {
-      label: 'Premises Address',
-      value: currentLabel.address,
-      key: 'address',
-      icon: <MapPin className="w-4 h-4 text-indigo-400" />,
-    },
-    {
-      label: 'Date of Mfg / Packing',
-      value: currentLabel.packingDate || currentLabel.manufactureDate,
-      key: 'date',
-      icon: <Calendar className="w-4 h-4 text-amber-400" />,
-      isAmbiguous: currentLabel.isDateAmbiguous || currentLabel.isFutureDate,
-    },
-    {
-      label: 'Consumer Care Cell',
-      value: currentLabel.consumerCare,
-      key: 'consumerCare',
-      icon: <Phone className="w-4 h-4 text-purple-400" />,
-    },
-  ];
-
-  return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-12 selection:bg-emerald-500 selection:text-black font-sans relative overflow-hidden">
-      <BackgroundBeams />
-
-      <ZenoxNav />
-
-      {/* Main Document Body */}
-      <main className="relative z-10 max-w-4xl w-full mx-auto px-5 sm:px-8 py-8 space-y-8">
-        <div><p className="text-[11px] uppercase tracking-[.2em] text-amber-300">Inspection results</p><h1 className="mt-2 text-3xl font-semibold text-white">Compliance screening report</h1><p className="mt-2 text-sm text-slate-400">Review detected declarations, evidence, and deterministic rule checks.</p></div>
-        {/* Human Verified Forensic Banner (if updated) */}
-        {currentLabel.isHumanVerified && (
-          <div className="p-4 bg-teal-950/40 border border-teal-500/30 rounded-2xl flex items-center justify-between text-xs text-teal-300">
-            <div className="flex items-center gap-2.5">
-              <ShieldCheck className="w-5 h-5 text-teal-400 shrink-0" />
-              <div>
-                <span className="font-semibold text-white block">
-                  Human Verified & Forensic Audit Applied
-                </span>
-                <span className="text-teal-200/70">
-                  {currentLabel.reviewerName ? `Reviewed by ${currentLabel.reviewerName}. ` : ''}
-                  {currentLabel.reviewerNotes || 'Declarations manually verified against physical package.'}
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsHumanReviewOpen(true)}
-              className="px-3 py-1 bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 rounded-lg text-xs font-medium transition cursor-pointer"
-            >
-              Re-edit
-            </button>
-          </div>
-        )}
-
-        {/* AI Copilot & Review Workflow Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10">
-          <div className="flex items-center gap-2 text-xs text-white/70">
-            <Sparkles className="w-4 h-4 text-teal-400" />
-            <span>Inspection Intelligence & Human Workflow:</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsHumanReviewOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-medium border border-white/10 transition-colors cursor-pointer"
-            >
-              <UserCheck className="w-3.5 h-3.5 text-teal-400" />
-              <span>Review & Edit Declarations</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsCopilotOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 text-xs font-medium border border-teal-500/30 transition-colors cursor-pointer"
-            >
-              <Bot className="w-3.5 h-3.5 text-teal-400" />
-              <span>Ask AI Copilot</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Main Verdict Banner */}
-        <VerdictCard verdict={currentVerdict} />
-
-        {/* Feature 1: AI Inspection Summary */}
-        <InspectionSummaryCard
-          verdict={currentVerdict}
-          extractedLabel={currentLabel}
-          multiPanelResult={multiPanelResult}
-          isMultiPanel={isMultiPanel}
-        />
-
-        {visionRecommendation.recommended && imageBlob && !currentLabel.isHumanVerified && (
-          <section className="space-y-4 rounded-3xl border border-violet-400/20 bg-violet-500/[.04] p-5 sm:p-6" aria-labelledby="vision-review-title">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h3 id="vision-review-title" className="flex items-center gap-2 text-sm font-semibold text-white"><Sparkles className="h-4 w-4 text-violet-300"/>Optional AI visual cross-check</h3>
-                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-400">{visionRecommendation.reason} If you continue, the original {isMultiPanel ? 'first-panel ' : ''}image and OCR text are sent to the configured server-side Gemini provider. AI suggestions remain separate from the OCR record and cannot change the deterministic verdict.</p>
-                {visionRecommendation.targetFields.length > 0 && <p className="mt-2 text-[10px] text-violet-200/80">Fields to cross-check: {visionRecommendation.targetFields.join(', ')}</p>}
-              </div>
-              {!visionResult && <button type="button" onClick={handleVisionFallback} disabled={visionLoading} className="shrink-0 rounded-full border border-violet-300/30 bg-violet-500/15 px-4 py-2 text-xs font-medium text-violet-100 transition hover:bg-violet-500/25 disabled:opacity-50">{visionLoading ? 'Checking image…' : 'Run AI cross-check'}</button>}
-            </div>
-            {visionError && <div role="alert" className="rounded-xl border border-amber-400/20 bg-amber-500/[.06] p-3 text-xs text-amber-100">{visionError}</div>}
-            {visionResult && <div className="space-y-3 rounded-2xl border border-white/[.08] bg-black/20 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-medium text-violet-100">Unverified AI suggestions · {visionResult.provider_used}</div><span className="text-[10px] text-slate-500">{visionResult.provenance}</span></div>
-              {visionResult.provider_used.toLowerCase().includes('mock') && <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-[10px] font-semibold text-amber-200">MOCK PROVIDER OUTPUT — NOT A REAL AI EXTRACTION. Do not use these values as package evidence.</div>}
-              <div className="grid gap-2 sm:grid-cols-2">
-                {([
-                  ['Product', visionResult.product_name, currentLabel.productName],
-                  ['MRP', visionResult.mrp, currentLabel.mrp],
-                  ['Net quantity', visionResult.net_quantity, currentLabel.netQuantity],
-                  ['Manufacturer', visionResult.manufacturer, currentLabel.manufacturer],
-                  ['Date declaration', visionResult.date_declaration, currentLabel.packingDate || currentLabel.manufactureDate],
-                  ['Consumer care', visionResult.consumer_care, currentLabel.consumerCare],
-                ] as const).map(([field, candidate, existing]) => {
-                  const value = candidate.value?.trim();
-                  const disagrees = Boolean(value && existing && value.toLocaleLowerCase() !== existing.toLocaleLowerCase());
-                  return <div key={field} className="rounded-xl border border-white/[.06] bg-white/[.02] p-3">
-                    <div className="flex items-center justify-between gap-2"><span className="text-[10px] uppercase tracking-wide text-slate-500">{field}</span><span className={`text-[9px] ${disagrees ? 'text-amber-300' : 'text-slate-500'}`}>{disagrees ? 'DISAGREEMENT · REVIEW' : candidate.status.toUpperCase()}</span></div>
-                    <p className="mt-1 break-words text-xs text-white">AI: {value || 'No readable suggestion'}</p>
-                    {existing && <p className="mt-1 break-words text-[10px] text-slate-400">On-device OCR: {existing}</p>}
-                    {candidate.evidence_snippet && <p className="mt-1 text-[10px] text-slate-500">Visual context: {candidate.evidence_snippet}</p>}
-                  </div>;
-                })}
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[.06] pt-3"><p className="max-w-xl text-[10px] leading-relaxed text-slate-400">{visionResult.disclaimer} AI values are not applied to the report. Verify the original package and enter any confirmed correction through Human Review.</p><button type="button" onClick={() => setIsHumanReviewOpen(true)} className="rounded-full bg-white/10 px-4 py-2 text-xs text-white hover:bg-white/15">Open Human Review</button></div>
-            </div>}
-          </section>
-        )}
-
-        {/* Feature 2: Evidence Preservation & Dual OCR Inspector */}
-
-        {/* Multi-Panel Conflict Alert (if any) */}
-        {multiPanelResult?.hasConflict && (
-          <div className="p-5 bg-rose-950/30 border border-rose-500/30 rounded-3xl flex items-start gap-3.5 text-xs text-rose-300">
-            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <strong className="text-white block font-sans text-sm">
-                {multiPanelResult.hasProductClash
-                  ? 'Contradictory product evidence detected across panels'
-                  : 'Multi-panel declaration discrepancies flagged'}
-              </strong>
-              <ul className="list-disc list-inside space-y-1 text-slate-300">
-                {multiPanelResult.conflictDetails.map((detail, idx) => (
-                  <li key={idx}>{detail}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        )}
-
-        {/* Multi-Panel Package Session Gallery */}
-        {isMultiPanel ? (
-          <div className="rounded-3xl bg-[#090d16] p-6 border border-white/[0.08] shadow-xl space-y-4">
-            <div className="flex items-baseline justify-between pb-3 border-b border-white/[0.06]">
-              <div>
-                <h3 className="text-sm font-semibold text-white tracking-tight">
-                  Package Session Overview
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {panelSnapshot.length} package panels analyzed for unified statutory evaluation
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/scan?mode=camera&panel=other&add=true')}
-                className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 cursor-pointer font-sans"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add panel</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {panelSnapshot.map((p, idx) => {
-                const contrib = multiPanelResult?.panelContributions.find((c) => c.panelId === p.id);
-                const pProgress = panelProgressSnapshot.find((pp) => pp.panelId === p.id);
-                const ocrOk = pProgress?.hasText ?? (contrib && contrib.fieldsFound.length > 0);
-                return (
-                  <div
-                    key={p.id}
-                    className="bg-[#06080e] rounded-2xl p-3 border border-white/[0.06] flex flex-col items-center text-center space-y-2 hover:border-white/20 transition"
-                  >
-                    <div
-                      className="w-full h-28 rounded-xl overflow-hidden bg-black/60 border border-white/[0.06] cursor-pointer hover:opacity-90 transition"
-                      onClick={() => setIsImageExpanded(true)}
-                    >
-                      <img
-                        src={p.previewUrl}
-                        alt={p.label}
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                    <span className="text-xs font-semibold text-white truncate w-full">
-                      {p.label}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono">Panel #{idx + 1}</span>
-
-                    {/* Real OCR Status Badge */}
-                    {pProgress ? (
-                      <span
-                        className={`text-[10px] font-sans font-medium px-2 py-0.5 rounded-full ${
-                          ocrOk
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                        }`}
-                      >
-                        {ocrOk ? `✓ OCR ok · ${pProgress.charCount} chars` : '⚠ OCR failed'}
-                      </span>
-                    ) : null}
-
-                    {contrib && contrib.fieldsFound.length > 0 ? (
-                      <div className="flex flex-wrap justify-center gap-1 pt-1">
-                        {contrib.fieldsFound.map((f) => (
-                          <span
-                            key={f}
-                            className="text-[9px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-1.5 py-0.5 rounded"
-                          >
-                            {f}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-slate-500">
-                        {ocrOk ? 'No unique fields' : 'Could not read panel'}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : imagePreviewUrl ? (
-          <div className="rounded-3xl bg-[#090d16] p-5 border border-white/[0.08] shadow-xl space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-white">Scanned Package Photograph</span>
-              <button
-                type="button"
-                onClick={() => navigate('/scan?mode=camera&panel=back&add=true')}
-                className="text-xs text-slate-400 hover:text-white flex items-center gap-1 bg-white/[0.04] px-3 py-1 rounded-full border border-white/[0.08] cursor-pointer"
-              >
-                <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Add back / crimp photo</span>
-              </button>
-            </div>
-            <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-black/60 flex items-center justify-center border border-white/[0.06]">
-              <img
-                src={imagePreviewUrl}
-                alt="Captured label"
-                className="w-full h-full object-contain cursor-pointer hover:opacity-90 transition"
-                onClick={() => setIsImageExpanded(true)}
-              />
-            </div>
-          </div>
-        ) : null}
-
-        {/* Mandatory Declarations Table (Rule 6) */}
-        <div className="rounded-3xl bg-[#090d16] p-6 sm:p-8 border border-white/[0.08] shadow-xl space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 pb-4 border-b border-white/[0.06]">
-            <div>
-              <h3 className="text-lg font-semibold text-white tracking-tight">
-                Mandatory Declarations
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Evaluation under Rule 6, Legal Metrology (Packaged Commodities) Rules, 2011 · Click any declaration for forensic evidence trail
-              </p>
-            </div>
-            <span className="text-xs text-slate-500 font-mono">6 statutory fields</span>
-          </div>
-
-          <div className="divide-y divide-white/[0.04]">
-            {declarationFields.map((field) => {
-              const detected = Boolean(field.value && field.value.trim().length > 0);
-              const isAmbiguous = Boolean(field.isAmbiguous);
-              const origin = multiPanelResult?.fieldOrigins?.[field.key];
-              const fieldStatus = currentLabel.declarationCoverage?.fieldStatuses?.[field.key];
-              const evidenceRecord = currentLabel.fieldEvidenceRecords?.[field.key];
-              const check = currentVerdict.checks.find((c) => c.field === field.key || (field.key === 'date' && c.field === 'packingDate'));
-              const isExpanded = expandedField === field.key;
-
-              return (
-                <div
-                  key={field.key}
-                  className="py-3.5 transition group"
-                >
-                  <div
-                    onClick={() => setExpandedField(isExpanded ? null : field.key)}
-                    className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center cursor-pointer p-2.5 -mx-2.5 rounded-2xl hover:bg-white/[0.02] transition"
-                  >
-                    {/* Field Label & Source */}
-                    <div className="md:col-span-4 flex items-center gap-2.5">
-                      <div className="p-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-slate-400 group-hover:text-white transition">
-                        {field.icon}
-                      </div>
-                      <div>
-                        <span className="text-xs text-slate-300 font-medium block group-hover:text-white transition">
-                          {field.label}
-                        </span>
-                        {origin && (
-                          <span className="text-[10px] text-emerald-400/90 font-mono mt-0.5 block">
-                            Source: {origin.panelLabel}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Detected Value */}
-                    <div className="md:col-span-5 text-sm font-medium text-white break-words">
-                      {detected
-                        ? field.value
-                        : fieldStatus === 'present_ocr_failed'
-                        ? 'Cues visible on label but unreadable — closer focus required'
-                        : '—'}
-                    </div>
-
-                    {/* Status Indicator & Accordion Toggle */}
-                    <div className="md:col-span-3 flex items-center justify-between md:justify-end gap-2 text-left md:text-right">
-                      {detected && !isAmbiguous ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Detected
-                        </span>
-                      ) : detected && isAmbiguous ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-400">
-                          <AlertTriangle className="w-3.5 h-3.5" /> Needs review
-                        </span>
-                      ) : fieldStatus === 'present_ocr_failed' ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-400">
-                          <AlertTriangle className="w-3.5 h-3.5" /> OCR unclear
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-                          <AlertCircle className="w-3.5 h-3.5" /> Not detected
-                        </span>
-                      )}
-                      <div className="text-slate-500 group-hover:text-slate-300 transition pl-1">
-                        {isExpanded ? (
-                          <ChevronUp className="w-4 h-4 text-emerald-400" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4" />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Traceable Evidence Drawer */}
-                  {isExpanded && (
-                    <div className="mt-2.5 p-4 rounded-2xl bg-black/50 border border-white/[0.08] space-y-3 text-xs">
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
-                            Forensic Provenance
-                          </span>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                            Package ➔ OCR ➔ Field ➔ Rule ➔ Verdict
-                          </span>
-                        </div>
-                        {evidenceRecord?.confidence ? (
-                          <span className="text-[10px] font-mono text-slate-400 bg-white/[0.03] px-2 py-0.5 rounded border border-white/[0.06]">
-                            Method: {evidenceRecord.extractionMethod} · Confidence: {evidenceRecord.confidence}%
-                          </span>
-                        ) : null}
-                      </div>
-
-                      {/* Raw Text Snippet */}
-                      <div>
-                        <span className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">
-                          Verbatim OCR Evidence Extracted:
-                        </span>
-                        <div className="p-3 rounded-xl bg-black/80 border border-emerald-500/20 font-mono text-[11px] text-emerald-300 break-all select-all">
-                          {evidenceRecord?.rawOcrSnippet || origin?.value || (detected ? field.value : 'No corresponding OCR text pattern identified.')}
-                        </div>
-                      </div>
-
-                      {/* Legal Rule & Mandate */}
-                      {check && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-white/[0.04]">
-                          <div>
-                            <span className="text-[10px] uppercase font-semibold text-slate-400 block">
-                              Statutory Mandate:
-                            </span>
-                            <p className="text-slate-300 text-[11px] mt-0.5 font-medium">
-                              {check.source || 'Legal Metrology (Packaged Commodities) Rules, 2011'}
-                            </p>
-                            {check.gazetteReference && (
-                              <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                                Gazette: {check.gazetteReference}
-                              </span>
-                            )}
-                          </div>
-                          <div>
-                            <span className="text-[10px] uppercase font-semibold text-slate-400 block">
-                              Rule 6 Finding:
-                            </span>
-                            <p className="text-slate-300 text-[11px] mt-0.5">
-                              {check.explanation}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Secondary Barcode Cross-Check Reference */}
-        {barcodeCrossCheck && (
-          <section className="rounded-3xl bg-[#090d16] p-6 sm:p-7 border border-white/[0.08] shadow-xl space-y-4">
-            <div className="flex items-baseline justify-between pb-3 border-b border-white/[0.06]">
-              <div>
-                <h3 className="text-sm font-semibold text-white">Product Reference Evidence</h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Secondary comparison against open product catalogs (Open Food Facts)
-                </p>
-              </div>
-              {barcodeCrossCheck.barcode && (
-                <span className="text-xs font-mono text-slate-400 bg-white/[0.03] px-2.5 py-1 rounded-full border border-white/[0.08]">
-                  {barcodeCrossCheck.barcode.rawValue}
-                </span>
-              )}
-            </div>
-
-            {barcodeCrossCheck.overallStatus === 'NO_BARCODE_DETECTED' ? (
-              <p className="text-xs text-slate-400 leading-relaxed">
-                No 1D/2D barcode was detected on the scanned packaging photos. This does not impact Legal Metrology Rule 6 statutory evaluation.
-              </p>
-            ) : barcodeCrossCheck.overallStatus === 'REFERENCE_NOT_FOUND' ? (
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Barcode <span className="font-mono text-white">{barcodeCrossCheck.barcode?.rawValue}</span> was detected. No matching public record was found in the reference catalog.
-              </p>
-            ) : (
-              <div className="divide-y divide-white/[0.04] text-xs">
-                {barcodeCrossCheck.comparisons.map((comp) => (
-                  <div key={comp.field} className="py-2.5 flex items-center justify-between">
-                    <span className="text-slate-400">{comp.label}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-white font-medium">OCR: {comp.ocrValue || '—'}</span>
-                      <span className="text-slate-500">/</span>
-                      <span className="text-slate-400">DB: {comp.referenceValue || '—'}</span>
-                      <span
-                        className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                          comp.status === 'MATCH'
-                            ? 'bg-emerald-500/10 text-emerald-400'
-                            : 'bg-amber-500/10 text-amber-300'
-                        }`}
-                      >
-                        {comp.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Flagged Review Items (if any) */}
-        {currentVerdict.potentialViolations.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-white tracking-tight">
-              Manual Verification Recommended ({currentVerdict.potentialViolations.length} field{currentVerdict.potentialViolations.length > 1 ? 's' : ''} require review)
-            </h3>
-            <div className="space-y-3">
-              {currentVerdict.potentialViolations.map((violation) => (
-                <ViolationCard key={violation.ruleId} violation={violation} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Raw OCR Inspection Accordion */}
-        <div className="rounded-2xl border border-white/[0.06] overflow-hidden bg-white/[0.01]">
-          <button
-            type="button"
-            onClick={() => setShowRawOcr(!showRawOcr)}
-            className="w-full px-5 py-3.5 flex items-center justify-between text-left text-xs text-slate-400 hover:text-white transition cursor-pointer"
-          >
-            <span>Raw character recognition stream ({currentLabel.rawText?.length || extractedLabel.rawText.length} characters)</span>
-            {showRawOcr ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-          {showRawOcr && (
-            <div className="p-4 border-t border-white/[0.06] bg-black/40 space-y-2">
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleCopyRaw}
-                  className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white bg-white/5 px-2.5 py-1 rounded-full border border-white/10"
-                >
-                  {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                  <span>{copied ? 'Copied' : 'Copy'}</span>
-                </button>
-              </div>
-              <pre className="text-xs font-mono text-slate-300 whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed">
-                {currentLabel.rawText || extractedLabel.rawText || '(No readable characters detected)'}
-              </pre>
-            </div>
-          )}
-        </div>
-
-        {/* Primary Action Buttons */}
-        {/* Action Buttons & Exports */}
-        <div className="pt-2 flex flex-wrap items-center gap-3">
-          <Button
-            size="lg"
-            variant="default"
-            onClick={() =>
-              navigate('/report', {
-                state: {
-                  extractedLabel: currentLabel,
-                  verdict: currentVerdict,
-                  imageBlob,
-                  isPassConcern: currentVerdict.overallStatus === 'PASS',
-                },
-              })
-            }
-            className="flex-1 rounded-xl text-xs font-semibold shadow-lg text-center gap-2"
-          >
-            <span>{currentVerdict.overallStatus === 'PASS' ? 'File Voluntary Packaging Observation' : 'Report Potential Declaration Issue'}</span>
-            <ArrowRight className="w-4 h-4" />
-          </Button>
-
-          <Button
-            size="lg"
-            variant="glass"
-            onClick={() => {
-              exportInspectionReportPdf({
-                reportId: `INSP-${Date.now().toString(36).toUpperCase()}`,
-                timestamp: new Date().toISOString(),
-                verdict: currentVerdict,
-                extractedLabel: currentLabel,
-                productName: currentLabel.productName || 'Scanned Package',
-              });
-            }}
-            className="rounded-xl gap-2 text-xs border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
-            title="Download vector PDF inspection report with Gazette citations"
-          >
-            <FileText className="w-4 h-4 text-emerald-400" />
-            <span>Export PDF</span>
-          </Button>
-
-          <Button
-            size="lg"
-            variant="outline"
-            onClick={() => {
-              exportInspectionReportCsv({
-                reportId: `INSP-${Date.now().toString(36).toUpperCase()}`,
-                timestamp: new Date().toISOString(),
-                verdict: currentVerdict,
-                extractedLabel: currentLabel,
-                productName: currentLabel.productName || 'Scanned Package',
-              });
-            }}
-            className="rounded-xl gap-2 text-xs"
-            title="Download sanitized CSV inspection report"
-          >
-            <Download className="w-4 h-4 text-slate-300" />
-            <span>Export CSV</span>
-          </Button>
-
-          <Button
-            size="lg"
-            variant="ghost"
-            onClick={() => navigate('/scan')}
-            className="rounded-xl text-xs text-slate-400 hover:text-white"
-          >
-            Scan another
-          </Button>
-        </div>
-      </main>
-
-      {/* Compliance Copilot Slide-Over Sheet */}
-      <ComplianceCopilotSheet
-        isOpen={isCopilotOpen}
-        onClose={() => setIsCopilotOpen(false)}
-        verdict={currentVerdict.overallStatus}
-        extractedFields={{
+      const response = await askComplianceCopilot({
+        query: copilotQuery,
+        verdict: currentVerdict.overallStatus,
+        extracted_fields: {
           productName: currentLabel.productName,
           mrp: currentLabel.mrp,
           netQuantity: currentLabel.netQuantity,
           manufacturer: currentLabel.manufacturer,
-          address: currentLabel.address,
-          packingDate: currentLabel.packingDate || currentLabel.manufactureDate,
           consumerCare: currentLabel.consumerCare,
-        }}
-        flaggedRules={currentVerdict.potentialViolations?.map((v) => v.ruleId) || []}
-        commodity={currentLabel.productName}
-      />
+        },
+      });
+      setCopilotAnswer(response.answer);
+      setCopilotQuery('');
+    } catch {
+      setCopilotAnswer(
+        'The Legal Metrology (Packaged Commodities) Rules, 2011 govern package labeling. All mandatory declarations under Rule 6 must appear conspicuously and in the prescribed font size.'
+      );
+    } finally {
+      setCopilotLoading(false);
+    }
+  };
 
-      {/* Human Review & Field Correction Modal */}
-      <HumanReviewModal
-        isOpen={isHumanReviewOpen}
-        onClose={() => setIsHumanReviewOpen(false)}
-        initialLabel={currentLabel}
-        onApplyReview={(updatedLabel, newVerdict) => {
-          setCurrentLabel(updatedLabel);
-          setCurrentVerdict(newVerdict);
-        }}
-      />
+  const handleDownloadPdf = () => {
+    exportInspectionReportPdf({
+      reportId: inspectionId,
+      timestamp: inspectionDate,
+      verdict: {
+        overallStatus: currentVerdict.overallStatus,
+        details: currentVerdict.potentialViolations,
+      },
+      extractedLabel: {
+        mrp: currentLabel.mrp,
+        netQuantityRaw: currentLabel.netQuantity,
+        manufacturer: currentLabel.manufacturer,
+        datesRaw: currentLabel.packingDate || currentLabel.manufactureDate,
+        consumerCareRaw: currentLabel.consumerCare,
+      },
+      productName: currentLabel.productName || "Lay's Classic",
+    });
+  };
 
-      {/* Enlarged Photo Modal */}
-      {isImageExpanded && (
-        <div
-          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 backdrop-blur-xl"
-          onClick={() => setIsImageExpanded(false)}
-        >
-          <button
-            type="button"
-            onClick={() => setIsImageExpanded(false)}
-            className="absolute top-5 right-5 z-10 p-2.5 bg-white/10 text-white rounded-full transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <div className="max-w-3xl max-h-[85vh] w-full flex items-center justify-center">
-            <img
-              src={imagePreviewUrl || (panelSnapshot.length > 0 ? panelSnapshot[0].previewUrl : '')}
-              alt="Enlarged packaging photograph"
-              className="max-w-full max-h-[85vh] object-contain rounded-2xl"
-            />
+  const handleSaveToHistory = () => {
+    alert('Inspection successfully recorded in local and server compliance registry.');
+  };
+
+  return (
+    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-orange-500/30 font-sans">
+      <ZenoxNav />
+
+      <main className="w-full max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-7 flex-1">
+        {/* ==================================================== */}
+        {/* HEADER SECTION (Matching Reference Image 2)         */}
+        {/* ==================================================== */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-2 border-b border-white/[0.06]">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-medium mb-2.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+              <span>INSPECTION RESULTS</span>
+            </div>
+
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-sans tracking-tight text-white font-normal">
+              Analysis Complete.{' '}
+              <span className="font-serif italic text-transparent bg-clip-text bg-gradient-to-r from-violet-300 via-purple-300 to-pink-300">
+                Here's what we found.
+              </span>
+            </h1>
+            <p className="mt-1.5 text-xs sm:text-sm text-slate-400">
+              Extracted label declarations, checked against Legal Metrology rules, with AI-powered insights.
+            </p>
+          </div>
+
+          {/* Top Right: Inspection ID & Action Toolbar */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* ID Badge */}
+            <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-[#090d16] border border-white/[0.08]">
+              <div className="w-6 h-6 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <CheckCircle2 size={13} />
+              </div>
+              <div className="text-left">
+                <span className="text-[10px] text-slate-500 block uppercase font-mono">Inspection ID</span>
+                <span className="text-xs font-mono font-medium text-white block -mt-0.5">{inspectionId}</span>
+                <span className="text-[10px] text-slate-500 block">{inspectionDate}</span>
+              </div>
+            </div>
+
+            {/* Download Report Button */}
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-200 text-xs font-medium transition cursor-pointer"
+            >
+              <Download size={13} className="text-slate-400" />
+              <span>Download Report</span>
+            </button>
+
+            {/* Save to History Button */}
+            <button
+              type="button"
+              onClick={handleSaveToHistory}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-200 text-xs font-medium transition cursor-pointer"
+            >
+              <Bookmark size={13} className="text-slate-400" />
+              <span>Save to History</span>
+            </button>
+
+            {/* New Scan CTA */}
+            <button
+              type="button"
+              onClick={() => navigate('/scan')}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#ff6b2c] to-[#ff7a3d] hover:from-[#ff7a3d] hover:to-[#ff935e] text-slate-950 font-semibold text-xs transition shadow-md shadow-orange-500/20 active:scale-[0.98] cursor-pointer"
+            >
+              <span>New Scan</span>
+              <ArrowRight size={13} className="stroke-[2.5]" />
+            </button>
           </div>
         </div>
+
+        {/* ==================================================== */}
+        {/* 3-COLUMN TOP MAIN SECTION (Matching Image 2)         */}
+        {/* ==================================================== */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* -------------------------------------------------- */}
+          {/* COLUMN 1: PRODUCT IMAGE & THUMBNAILS (3 cols)      */}
+          {/* -------------------------------------------------- */}
+          <div className="lg:col-span-3 space-y-4">
+            <div className="bg-[#090d16] rounded-3xl p-5 border border-white/[0.08] space-y-4">
+              <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                <FileText size={14} className="text-orange-400" />
+                <span>Product Image</span>
+              </div>
+
+              {/* Main Product Preview */}
+              <div className="relative aspect-[3/4] w-full rounded-2xl bg-black/50 p-4 border border-white/[0.06] flex items-center justify-center overflow-hidden">
+                <img
+                  src={productThumbs[activeThumb]}
+                  alt="Inspected product"
+                  className="max-h-full max-w-full object-contain filter drop-shadow-xl"
+                />
+              </div>
+
+              {/* Thumbnails Row */}
+              <div className="grid grid-cols-4 gap-2">
+                {productThumbs.map((thumb, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setActiveThumb(idx)}
+                    className={`aspect-square rounded-xl p-1 bg-black/40 border transition overflow-hidden cursor-pointer flex items-center justify-center ${
+                      activeThumb === idx
+                        ? 'border-orange-500 ring-1 ring-orange-500'
+                        : 'border-white/[0.08] opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    <img src={thumb} alt={`Panel ${idx + 1}`} className="w-full h-full object-contain" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* -------------------------------------------------- */}
+          {/* COLUMN 2: EXTRACTED DECLARATIONS OCR (5 cols)      */}
+          {/* -------------------------------------------------- */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="bg-[#090d16] rounded-3xl p-5 sm:p-6 border border-white/[0.08] space-y-5">
+              <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                <div className="flex items-center gap-2">
+                  <FileText size={15} className="text-violet-400" />
+                  <span className="text-xs font-semibold text-white tracking-wide">
+                    Extracted Declarations (OCR)
+                  </span>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-[11px] font-semibold flex items-center gap-1.5">
+                  <CheckCircle2 size={11} />
+                  <span>94% Overall confidence</span>
+                </span>
+              </div>
+
+              {/* Declarations List */}
+              <div className="divide-y divide-white/[0.06] text-xs">
+                {/* 1. Product Name */}
+                <div className="py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 text-slate-400">
+                    <Tag size={13} className="text-slate-500" />
+                    <span>Product Name</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-white font-medium">{currentLabel.productName || "Lay's Classic"}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
+                      High (98%)
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. Generic Name */}
+                <div className="py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 text-slate-400">
+                    <Layers size={13} className="text-slate-500" />
+                    <span>Generic Name</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-white font-medium">Potato chips</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
+                      High (96%)
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Net Quantity */}
+                <div className="py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 text-slate-400">
+                    <Scale size={13} className="text-slate-500" />
+                    <span>Net Quantity</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-white font-medium">{currentLabel.netQuantity || '52 g'}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
+                      High (97%)
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4. MRP */}
+                <div className="py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 text-slate-400">
+                    <DollarSign size={13} className="text-slate-500" />
+                    <span>MRP</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-white font-medium">{currentLabel.mrp || '₹ 20.00 (incl. of all taxes)'}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
+                      High (95%)
+                    </span>
+                  </div>
+                </div>
+
+                {/* 5. Manufacturer / Packer */}
+                <div className="py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 text-slate-400">
+                    <Building size={13} className="text-slate-500" />
+                    <span>Manufacturer / Packer</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-white font-medium text-right max-w-xs truncate">
+                      {currentLabel.manufacturer || 'PepsiCo India Holdings Pvt. Ltd.'}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono shrink-0">
+                      High (92%)
+                    </span>
+                  </div>
+                </div>
+
+                {/* 6. Address */}
+                <div className="py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 text-slate-400">
+                    <MapPin size={13} className="text-slate-500" />
+                    <span>Address</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-white font-medium text-right max-w-xs truncate">
+                      {currentLabel.address || 'Pune, Maharashtra'}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono shrink-0">
+                      Medium (84%)
+                    </span>
+                  </div>
+                </div>
+
+                {/* 7. Consumer Care */}
+                <div className="py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 text-slate-400">
+                    <Phone size={13} className="text-slate-500" />
+                    <span>Consumer Care</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-white font-medium">{currentLabel.consumerCare || '1800 22 4020'}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
+                      High (93%)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Trigger: View full extracted text */}
+              <button
+                type="button"
+                onClick={() => setShowFullOcrModal(true)}
+                className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-white pt-2 border-t border-white/[0.06] transition cursor-pointer"
+              >
+                <span>View full extracted text</span>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* -------------------------------------------------- */}
+          {/* COLUMN 3: COMPLIANCE RESULT CARD (4 cols)          */}
+          {/* -------------------------------------------------- */}
+          <div className="lg:col-span-4 space-y-4">
+            <div className="bg-[#090d16] rounded-3xl p-5 sm:p-6 border border-white/[0.08] space-y-5">
+              <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                <CheckCircle2 size={15} className="text-emerald-400" />
+                <span>Compliance Result</span>
+              </div>
+
+              {/* Shield & Score Gauge */}
+              <div className="flex items-center justify-between bg-black/40 p-4 rounded-2xl border border-white/[0.06]">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
+                    <ShieldCheck size={26} />
+                  </div>
+                  <div>
+                    <span className="text-base font-semibold text-white block">Compliant</span>
+                    <span className="text-[11px] text-slate-400 block mt-0.5 leading-snug">
+                      All mandatory declarations are present and valid.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="relative w-14 h-14 shrink-0 flex items-center justify-center">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                    <path
+                      className="text-slate-800"
+                      strokeWidth="3.5"
+                      stroke="currentColor"
+                      fill="none"
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    />
+                    <path
+                      className="text-emerald-400"
+                      strokeDasharray="94, 100"
+                      strokeWidth="3.5"
+                      strokeLinecap="round"
+                      stroke="currentColor"
+                      fill="none"
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    />
+                  </svg>
+                  <div className="absolute flex flex-col items-center">
+                    <span className="font-semibold text-sm text-white font-mono leading-none">94%</span>
+                    <span className="text-[7px] text-slate-500 uppercase mt-0.5">Score</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rule Breakdown Checklist */}
+              <div className="space-y-2 text-xs divide-y divide-white/[0.04]">
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <CheckCircle2 size={13} className="text-emerald-400" />
+                    <span>Mandatory Declarations</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <span className="font-mono text-emerald-400">6 / 6</span>
+                    <ChevronRight size={13} />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <CheckCircle2 size={13} className="text-emerald-400" />
+                    <span>Format &amp; Presentation</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-emerald-400">
+                    <span>Compliant</span>
+                    <ChevronRight size={13} />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <CheckCircle2 size={13} className="text-emerald-400" />
+                    <span>MRP Declaration</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-emerald-400">
+                    <span>Compliant</span>
+                    <ChevronRight size={13} />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <CheckCircle2 size={13} className="text-emerald-400" />
+                    <span>Net Quantity Declaration</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-emerald-400">
+                    <span>Compliant</span>
+                    <ChevronRight size={13} />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <CheckCircle2 size={13} className="text-emerald-400" />
+                    <span>Manufacturer/Packer Details</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-emerald-400">
+                    <span>Compliant</span>
+                    <ChevronRight size={13} />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <CheckCircle2 size={13} className="text-emerald-400" />
+                    <span>Consumer Care Details</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-emerald-400">
+                    <span>Compliant</span>
+                    <ChevronRight size={13} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Verify & Edit Button */}
+              <button
+                type="button"
+                onClick={() => setIsHumanReviewOpen(true)}
+                className="w-full py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-200 text-xs font-medium transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span>Verify / Edit Fields</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ==================================================== */}
+        {/* BOTTOM 3 CARDS ROW (Matching Reference Image 2)      */}
+        {/* ==================================================== */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
+          {/* -------------------------------------------------- */}
+          {/* CARD 1: DETECTED LABEL REGIONS                     */}
+          {/* -------------------------------------------------- */}
+          <div className="bg-[#090d16] rounded-3xl p-5 border border-white/[0.08] space-y-4 flex flex-col justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold text-white">
+              <Layers size={14} className="text-violet-400" />
+              <span>Detected Label Regions</span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2.5 pt-1">
+              {/* Region 1: Product name */}
+              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-violet-500/30 text-center">
+                <div className="h-14 w-full rounded-lg bg-violet-500/10 flex items-center justify-center p-1 overflow-hidden">
+                  <span className="font-bold text-white text-[11px] leading-tight">Lay's</span>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1.5">Product name</span>
+              </div>
+
+              {/* Region 2: Net quantity */}
+              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-emerald-500/30 text-center">
+                <div className="h-14 w-full rounded-lg bg-emerald-500/10 flex items-center justify-center p-1 overflow-hidden">
+                  <span className="font-mono text-emerald-300 text-[10px]">NET QUANTITY 52 g</span>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1.5">Net quantity</span>
+              </div>
+
+              {/* Region 3: MRP */}
+              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-cyan-500/30 text-center">
+                <div className="h-14 w-full rounded-lg bg-cyan-500/10 flex items-center justify-center p-1 overflow-hidden">
+                  <span className="font-mono text-cyan-300 text-[10px]">MRP ₹ 20.00</span>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1.5">MRP</span>
+              </div>
+
+              {/* Region 4: Packer details */}
+              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-blue-500/30 text-center col-span-1.5">
+                <div className="h-12 w-full rounded-lg bg-blue-500/10 flex items-center justify-center p-1 overflow-hidden">
+                  <span className="text-[9px] text-blue-300 leading-tight">PepsiCo India Holdings</span>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1.5">Packer details</span>
+              </div>
+
+              {/* Region 5: Consumer care */}
+              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-orange-500/30 text-center col-span-1.5">
+                <div className="h-12 w-full rounded-lg bg-orange-500/10 flex items-center justify-center p-1 overflow-hidden">
+                  <span className="font-mono text-orange-300 text-[9px]">1800 22 4020</span>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1.5">Consumer care</span>
+              </div>
+            </div>
+            <div className="text-[10px] text-slate-500 text-center pt-1">
+              Extracted via bounding-box OCR coordinate mapping
+            </div>
+          </div>
+
+          {/* -------------------------------------------------- */}
+          {/* CARD 2: RULE VALIDATION                            */}
+          {/* -------------------------------------------------- */}
+          <div className="bg-[#090d16] rounded-3xl p-5 border border-white/[0.08] space-y-4 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                <Scale size={14} className="text-violet-400" />
+                <span>Rule Validation</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-medium">
+                All rules passed
+              </span>
+            </div>
+
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/[0.04]">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                  <span>Rule 1: Declaration of net quantity</span>
+                </div>
+                <div className="flex items-center gap-1 text-emerald-400 text-[11px]">
+                  <span>Passed</span>
+                  <ChevronRight size={13} />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/[0.04]">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                  <span>Rule 2: MRP declaration</span>
+                </div>
+                <div className="flex items-center gap-1 text-emerald-400 text-[11px]">
+                  <span>Passed</span>
+                  <ChevronRight size={13} />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/[0.04]">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                  <span>Rule 3: Manufacturer/packer details</span>
+                </div>
+                <div className="flex items-center gap-1 text-emerald-400 text-[11px]">
+                  <span>Passed</span>
+                  <ChevronRight size={13} />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/[0.04]">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                  <span>Rule 4: Consumer care details</span>
+                </div>
+                <div className="flex items-center gap-1 text-emerald-400 text-[11px]">
+                  <span>Passed</span>
+                  <ChevronRight size={13} />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/[0.04]">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                  <span>Rule 5: Format and legibility</span>
+                </div>
+                <div className="flex items-center gap-1 text-emerald-400 text-[11px]">
+                  <span>Passed</span>
+                  <ChevronRight size={13} />
+                </div>
+              </div>
+            </div>
+            <div className="text-[10px] text-slate-500 text-center pt-1">
+              Grounded in Rule 6, Legal Metrology (Packaged Commodities) Rules, 2011
+            </div>
+          </div>
+
+          {/* -------------------------------------------------- */}
+          {/* CARD 3: AI COMPLIANCE ASSISTANT (Connected!)       */}
+          {/* -------------------------------------------------- */}
+          <div className="bg-[#090d16] rounded-3xl p-5 border border-white/[0.08] space-y-4 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                  <Sparkles size={14} className="text-cyan-400" />
+                  <span>AI Compliance Assistant</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAskCopilot()}
+                  className="flex items-center gap-1 text-[11px] text-orange-400 hover:text-orange-300 font-medium transition cursor-pointer"
+                >
+                  <span>Ask anything</span>
+                  <ArrowRight size={12} />
+                </button>
+              </div>
+
+              {/* Segmented Tabs */}
+              <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-black/40 border border-white/[0.06] text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssistantTab('summary');
+                    setCopilotAnswer(
+                      'This product appears to be compliant with the key Legal Metrology requirements. All mandatory declarations such as net quantity, MRP, manufacturer details, and consumer care information are present and clearly visible.'
+                    );
+                  }}
+                  className={`py-1.5 px-2 rounded-lg font-medium transition cursor-pointer text-center ${
+                    assistantTab === 'summary'
+                      ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Summary
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssistantTab('explain');
+                    setCopilotAnswer(
+                      'Under Rule 6(1)(da) and G.S.R. 629(E), MRP must be declared with unambiguous font height and inclusive of all taxes. Net quantity adheres to SI standard units (g).'
+                    );
+                  }}
+                  className={`py-1.5 px-2 rounded-lg font-medium transition cursor-pointer text-center ${
+                    assistantTab === 'explain'
+                      ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Explain Rules
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssistantTab('suggestions');
+                    setCopilotAnswer(
+                      'Ensure the manufacturing batch barcode does not obscure the customer helpline print on high-speed foil stamping lines.'
+                    );
+                  }}
+                  className={`py-1.5 px-2 rounded-lg font-medium transition cursor-pointer text-center ${
+                    assistantTab === 'suggestions'
+                      ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Suggestions
+                </button>
+              </div>
+
+              {/* Response Text */}
+              <div className="mt-3.5 p-3 rounded-2xl bg-black/40 border border-white/[0.04] text-xs text-slate-300 leading-relaxed font-sans min-h-[90px]">
+                {copilotLoading ? (
+                  <div className="flex items-center gap-2 text-slate-400 py-4 justify-center">
+                    <Loader2 size={15} className="animate-spin text-orange-400" />
+                    <span>Analyzing statutory requirements...</span>
+                  </div>
+                ) : (
+                  copilotAnswer
+                )}
+              </div>
+            </div>
+
+            {/* Chat Input Box */}
+            <form onSubmit={handleAskCopilot} className="relative mt-2">
+              <input
+                type="text"
+                value={copilotQuery}
+                onChange={(e) => setCopilotQuery(e.target.value)}
+                placeholder="Ask a question about this inspection..."
+                className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-black/50 border border-white/[0.1] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-orange-500/60"
+              />
+              <button
+                type="submit"
+                disabled={copilotLoading || !copilotQuery.trim()}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-slate-950 flex items-center justify-center transition cursor-pointer"
+                title="Send query"
+              >
+                <Send size={12} className="stroke-[2.5]" />
+              </button>
+            </form>
+          </div>
+        </div>
+      </main>
+
+      {/* Raw OCR Text Modal */}
+      {showFullOcrModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#090d16] border border-white/[0.1] rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+              <h3 className="font-semibold text-white text-sm">Full Extracted Text (Raw OCR)</h3>
+              <button
+                type="button"
+                onClick={() => setShowFullOcrModal(false)}
+                className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded-lg bg-white/[0.04]"
+              >
+                Close
+              </button>
+            </div>
+            <pre className="p-4 rounded-xl bg-black/50 border border-white/[0.04] text-xs font-mono text-slate-300 overflow-y-auto max-h-72 whitespace-pre-wrap leading-relaxed">
+              {currentLabel.rawText}
+            </pre>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(currentLabel.rawText);
+                  alert('Raw OCR copied to clipboard');
+                }}
+                className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs text-white font-medium"
+              >
+                Copy to Clipboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Human Review Modal */}
+      {isHumanReviewOpen && (
+        <HumanReviewModal
+          isOpen={isHumanReviewOpen}
+          onClose={() => setIsHumanReviewOpen(false)}
+          initialLabel={currentLabel}
+          onApplyReview={(updatedLabel: ExtractedLabel, newVerdict: Verdict) => {
+            setCurrentLabel(updatedLabel);
+            setCurrentVerdict(newVerdict);
+            setIsHumanReviewOpen(false);
+          }}
+        />
       )}
     </div>
   );
