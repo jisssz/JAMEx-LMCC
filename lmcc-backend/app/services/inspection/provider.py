@@ -229,28 +229,26 @@ class MockInspectionAiProvider(InspectionAiProvider):
         # 3. Finalize synthesis based on PASS or REVIEW
         if verdict == "PASS" and not flagged_rules and not declarations_requiring_attention:
             overall_summary = (
-                f"Automated statutory screening for '{prod_name}' evaluated to PASS. All mandatory declarations "
-                f"under Rule 6(1) of the Legal Metrology (Packaged Commodities) Rules, 2011 were successfully identified, "
-                f"verified, and validated. No conflicting panel values or statutory violations were observed."
+                f"Automated screening for '{prod_name}' did not flag any configured checks in the provided declarations. "
+                "This is a screening result, not a legal determination. Confirm the original package and applicable requirements."
             )
-            key_findings = [
-                "Maximum Retail Price (MRP) declared with statutory 'inclusive of all taxes' clause.",
-                "Standard metric net quantity declaration identified with appropriate units.",
-                "Manufacturer/packer corporate name and registered address clearly declared.",
-                "Valid manufacturing or packing date detected with proper month/year format.",
-                "Consumer grievance redressal telephone helpline or email verified.",
-            ]
-            evidence_explanation = [
-                "Scanned OCR evidence across available packaging panels corroborates compliant declaration placement and font legibility.",
-                "Statutory wording conforms to G.S.R. 779(E) and G.S.R. 202(E) standards.",
-            ]
+            display_names = {
+                "mrp": "MRP", "maximum_retail_price": "MRP", "net_quantity": "Net quantity",
+                "netQuantity": "Net quantity", "manufacturer": "Manufacturer", "packer": "Packer",
+                "address": "Address", "date_declaration": "Date declaration", "packing_date": "Date declaration",
+                "consumer_care": "Consumer care", "consumerCare": "Consumer care",
+            }
+            key_findings = [f"{display_names.get(field, field.replace('_', ' ').title())} text detected: {value}." for field, value in declarations.items() if value]
+            if not key_findings:
+                key_findings = ["No configured issue was flagged; inspect the extracted declarations and original package."]
+            evidence_explanation = ["The provided OCR declarations did not trigger the configured screening checks. Confirm legibility, context, and package details on the original images."]
             applicable_rules = [
                 "Rule 6(1)(a)-(g), Legal Metrology (Packaged Commodities) Rules, 2011",
                 "G.S.R. 202(E) read with G.S.R. 779(E) (Ministry of Consumer Affairs)",
             ]
             recommended_next_steps = [
-                "Proceed with routine archiving of the digital inspection record for statutory surveillance history.",
-                "Conduct periodic spot-check pricing at retail counter to confirm selling price does not exceed declared MRP.",
+                "Review the extracted values against the original package before relying on this screening result.",
+                "Check current applicable requirements and any declarations that were not readable in the scanned images.",
             ]
         else:
             verdict = "REVIEW"

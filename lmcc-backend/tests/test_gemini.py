@@ -61,7 +61,8 @@ def test_valid_inspection_summary_generation():
     assert "provider_used" in data
 
     # Compliance assertions
-    assert "PASS" in data["overall_summary"]
+    assert "screening" in data["overall_summary"].lower()
+    assert "not a legal determination" in data["overall_summary"].lower()
     assert "NutriBake" in data["overall_summary"]
     assert len(data["declarations_requiring_attention"]) == 0
     assert len(data["key_findings"]) >= 3
@@ -417,7 +418,8 @@ def test_scenario_c_gemini_quota_exhausted_429(monkeypatch):
 
         assert res.is_ai_generated is False
         assert res.provider_used == "mock-statutory-engine (fallback)"
-        assert "PASS" in res.overall_summary
+        assert "screening" in res.overall_summary.lower()
+        assert "not a legal determination" in res.overall_summary.lower()
 
 
 def test_scenario_c_gemini_invalid_credentials_403(monkeypatch):

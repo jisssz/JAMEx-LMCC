@@ -43,20 +43,19 @@ test('AI Summary: Generating summary for compliant PASS inspection', async () =>
 
   const summary = await requestInspectionSummary(summaryRequest);
 
-  // 1. Overall Summary verifies compliance under PCR 2011
+  // 1. Summary describes the automated screen without making a legal determination.
   assert.ok(summary.overallSummary, 'Overall summary should not be empty');
   assert.ok(
-    summary.overallSummary.toLowerCase().includes('complies') ||
-      summary.overallSummary.toLowerCase().includes('satisfies') ||
-      summary.overallSummary.toLowerCase().includes('legal metrology'),
-    'Expected overall summary to confirm compliance'
+    summary.overallSummary.toLowerCase().includes('screening') &&
+      summary.overallSummary.toLowerCase().includes('original label'),
+    'Expected a grounded screening summary that asks users to check the original label'
   );
 
   // 2. Key findings
   assert.ok(summary.keyFindings.length >= 3, 'Expected at least 3 key findings for compliant package');
   assert.ok(
-    summary.keyFindings.some((f) => f.includes('Rule 6(1)') || f.includes('G.S.R. 779(E)') || f.includes('declarations')),
-    'Expected key findings to cite Rule 6(1) or G.S.R. 779(E)'
+    summary.keyFindings.some((f) => f.includes('detected')),
+    'Expected key findings to describe detected OCR text'
   );
 
   // 3. Declarations Requiring Attention must be empty for PASS

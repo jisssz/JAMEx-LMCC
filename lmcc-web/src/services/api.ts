@@ -758,45 +758,41 @@ export function getClientOfflineInspectionSummary(
   const issues = payload.issues || [];
   const decl = payload.declarations || {};
 
-  // 1. Synthesize Overall Summary
+  // Describe only the automated screen and its configured evidence; it is not a legal determination.
   const overallSummary = isPass
-    ? `The pre-packaged commodity '${prodName}' satisfies statutory screening standards under the Legal Metrology (Packaged Commodities) Rules, 2011. Mandatory Rule 6 declarations (Maximum Retail Price, Metric Net Quantity, Manufacturer/Packer Identity, Date of Packaging, Premises Address, and Consumer Helpline) are present and readable across the inspected surfaces.`
-    : `The pre-packaged commodity '${prodName}' requires physical statutory review under Rule 6 of the Legal Metrology (Packaged Commodities) Rules, 2011. Automated screening flagged ${issues.length || 1} potential non-compliance issue(s), notably missing or unreadable statutory declarations.`;
+    ? `Automated screening of '${prodName}' did not flag any configured checks in the declarations detected by OCR. Confirm the package details and applicable requirements against the original label.`
+    : `Automated screening of '${prodName}' flagged ${issues.length || 1} item(s) for review. Check the original package and confirm any unclear or missing declarations before drawing a conclusion.`;
 
   // 2. Synthesize Key Findings
   const keyFindings: string[] = [];
   if (isPass) {
-    keyFindings.push('All mandatory Rule 6(1) declarations detected with verified confidence.');
-    keyFindings.push(
-      decl.mrp
-        ? `Retail sale price (${decl.mrp}) adheres to statutory tax inclusivity per G.S.R. 779(E).`
-        : 'Statutory price declaration complies with G.S.R. 779(E).'
-    );
-    keyFindings.push(
-      decl.netQuantity
-        ? `Net quantity declared in standard metric units (${decl.netQuantity}) per Second Schedule.`
-        : 'Net quantity conforms to standard metric units.'
-    );
-    keyFindings.push('Manufacturer/packer identification and consumer redressal cell confirmed.');
-    if (payload.isMultiPanel) {
-      keyFindings.push('Multi-panel cross-check verified consistent declarations across surfaces.');
-    }
+    const detected = [
+      decl.mrp && `MRP text detected: ${decl.mrp}.`,
+      decl.netQuantity && `Net quantity text detected: ${decl.netQuantity}.`,
+      decl.manufacturer && `Manufacturer/packer text detected: ${decl.manufacturer}.`,
+      decl.address && `Address text detected: ${decl.address}.`,
+      (decl.dateDeclaration || decl.packingDate) && `Date declaration text detected: ${decl.dateDeclaration || decl.packingDate}.`,
+      decl.consumerCare && `Consumer care text detected: ${decl.consumerCare}.`,
+    ].filter((item): item is string => Boolean(item));
+    keyFindings.push(...detected);
+    if (!detected.length) keyFindings.push('No configured issue was flagged; review the extracted text and original package.');
+    if (payload.isMultiPanel) keyFindings.push('Multiple package panels were included in the screening; compare declarations on the original images.');
   } else {
     if (issues.length > 0) {
       issues.forEach((iss) => {
         keyFindings.push(`${iss.field}: ${iss.title} (${iss.severity?.toUpperCase() || 'HIGH'})`);
       });
     } else {
-      keyFindings.push('One or more mandatory Rule 6(1) declarations missing or indeterminate.');
+      keyFindings.push('One or more configured screening checks need review.');
     }
     if (!decl.mrp) {
-      keyFindings.push('Missing MRP declaration (Rule 6(1)(da) / G.S.R. 779(E)).');
+      keyFindings.push('MRP was not detected in the provided OCR text.');
     }
     if (!decl.netQuantity) {
-      keyFindings.push('Missing Net Quantity declaration (Rule 6(1)(c) / Second Schedule).');
+      keyFindings.push('Net quantity was not detected in the provided OCR text.');
     }
     if (!decl.manufacturer) {
-      keyFindings.push('Missing Manufacturer/Packer identity (Rule 6(1)(a)-(b)).');
+      keyFindings.push('Manufacturer/packer was not detected in the provided OCR text.');
     }
   }
 
@@ -879,14 +875,14 @@ export function getClientOfflineInspectionSummary(
     panelDesc = `${payload.panelContributions.length} captured panel(s) [${payload.panelContributions.map((p, i) => p.panelType || `Panel ${i + 1}`).join(', ')}]`;
   }
   const evidencePoints: string[] = [];
-  if (decl.mrp) evidencePoints.push(`MRP verified as '${decl.mrp}'`);
-  if (decl.netQuantity) evidencePoints.push(`Net quantity verified as '${decl.netQuantity}'`);
-  if (decl.manufacturer) evidencePoints.push(`Manufacturer identified as '${decl.manufacturer}'`);
-  if (decl.dateDeclaration) evidencePoints.push(`Date declaration stamped as '${decl.dateDeclaration}'`);
+  if (decl.mrp) evidencePoints.push(`MRP text detected: '${decl.mrp}'`);
+  if (decl.netQuantity) evidencePoints.push(`Net quantity text detected: '${decl.netQuantity}'`);
+  if (decl.manufacturer) evidencePoints.push(`Manufacturer text detected: '${decl.manufacturer}'`);
+  if (decl.dateDeclaration) evidencePoints.push(`Date declaration text detected: '${decl.dateDeclaration}'`);
   if (decl.consumerCare) evidencePoints.push(`Consumer care cell found: '${decl.consumerCare}'`);
 
   const evidenceExplanation = isPass
-    ? `Inspection evidence synthesized across ${panelDesc}. Verified declarations: ${evidencePoints.join('; ')}. No OCR occlusion or conflicting price stamps detected.`
+    ? `OCR text was extracted from ${panelDesc}. Detected declaration text: ${evidencePoints.join('; ') || 'None'}. Confirm legibility and context on the original package.`
     : `Inspection evidence evaluated across ${panelDesc}. Detected declarations: ${evidencePoints.length ? evidencePoints.join('; ') : 'None'}. Deficiencies flagged: ${attentionItems.map((a) => `${a.field} (${a.issueType})`).join(', ') || 'Statutory declaration missing'}.`;
 
   // 5. Synthesize Applicable Statutory Rules

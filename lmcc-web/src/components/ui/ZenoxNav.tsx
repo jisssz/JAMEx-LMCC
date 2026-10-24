@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Scale, Menu, X, ChevronRight, Sparkles, House, CircleHelp, History as HistoryIcon, BarChart3, WandSparkles, Map } from 'lucide-react';
+import { Scale, Menu, X, ChevronRight, Sparkles, House, CircleHelp, History as HistoryIcon, BarChart3, WandSparkles, Map, ScanLine, FileText } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Badge } from './badge';
 import { Button } from './button';
@@ -19,12 +19,15 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
 
   const navLinks = [
     { label: 'Home', path: '/', Icon: House },
-    { label: 'How it works', action: 'how-it-works', Icon: CircleHelp },
+    { label: 'Dashboard', path: '/dashboard', Icon: BarChart3 },
+    { label: 'Scan Product', path: '/scan', Icon: ScanLine },
+    { label: 'Image Enhancement', path: '/image-enhancement', Icon: WandSparkles },
     { label: 'Rules', path: '/rules', Icon: Scale },
     { label: 'History', path: '/history', Icon: HistoryIcon },
-    { label: 'Surveillance', path: '/authority-dashboard', Icon: BarChart3 },
-    { label: 'Image Enhancement', path: '/image-enhancement', Icon: WandSparkles },
     { label: 'India Map', path: '/india-map', Icon: Map },
+    { label: 'Reports', path: '/reports', Icon: FileText },
+    { label: 'How it works', action: 'how-it-works', Icon: CircleHelp },
+    { label: 'Surveillance', path: '/authority-dashboard', Icon: BarChart3 },
   ];
 
   const handleNavClick = (link: typeof navLinks[0]) => {
@@ -50,18 +53,12 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
   const isActive = (path?: string) => {
     if (!path) return false;
     if (path === '/') return location.pathname === '/';
-    if (path === '/authority-dashboard') {
-      return (
-        location.pathname === '/authority-dashboard' ||
-        location.pathname === '/authority' ||
-        location.pathname === '/dashboard'
-      );
-    }
+    if (path === '/authority-dashboard') return location.pathname === '/authority-dashboard' || location.pathname === '/authority';
     return location.pathname.startsWith(path);
   };
 
   return (
-    <header className="sticky top-4 sm:top-6 z-50 w-full px-4 sm:px-6 max-w-6xl mx-auto">
+    <header className="sticky top-3 z-50 w-full px-3 sm:px-5 max-w-[1600px] mx-auto">
       <nav className="relative flex items-center justify-between px-5 sm:px-7 py-3 rounded-full bg-[#080c16]/90 border border-white/[0.08] backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition-all">
         {/* Brand */}
         <div
@@ -73,7 +70,7 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold tracking-tight text-white font-sans">JAMEx</span>
+          <span className="text-sm font-bold tracking-tight text-white font-sans">JAMH X</span>
               <Badge variant="pass" className="text-[10px] px-1.5 py-0 uppercase">
                 LMCC
               </Badge>
@@ -86,7 +83,7 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
 
         {/* Desktop Menu Links */}
         <div
-          className="jamex-nav-dock hidden md:flex items-center gap-2 bg-white/[0.03] p-2 rounded-full border border-white/[0.05]"
+          className="jamex-nav-dock hidden lg:flex items-center gap-0.5 bg-white/[0.03] p-1 rounded-full border border-white/[0.05]"
           onMouseLeave={() => setHoveredDockIndex(null)}
         >
           {navLinks.map((link, index) => {
@@ -108,7 +105,7 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
                 transition={{ type: 'spring', stiffness: 420, damping: 26, mass: 0.55 }}
                 aria-label={link.label}
                 aria-current={active ? 'page' : undefined}
-                className={`jamex-dock-item relative flex h-11 w-11 items-center justify-center text-xs font-sans font-medium cursor-pointer rounded-full ${
+                className={`jamex-dock-item relative flex h-10 px-2.5 items-center justify-center gap-1.5 text-[11px] 2xl:text-xs font-sans font-medium cursor-pointer rounded-full ${
                   active ? 'text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -120,6 +117,7 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
                   />
                 )}
                 <Icon className="relative z-10 h-[18px] w-[18px]" aria-hidden="true" />
+                <span className="relative z-10 hidden whitespace-nowrap 2xl:inline">{link.label}</span>
                 <span className={`jamex-dock-tooltip ${distance === 0 || focusedDockIndex === index ? 'is-visible' : ''}`} aria-hidden="true">{link.label}</span>
               </motion.button>
             );
@@ -141,7 +139,7 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
         </div>
 
         {/* Mobile Hamburger Button */}
-        <div className="flex items-center gap-2 md:hidden">
+        <div className="flex items-center gap-2 lg:hidden">
           <Button
             size="sm"
             variant="glass"
