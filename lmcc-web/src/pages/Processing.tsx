@@ -116,7 +116,7 @@ export const Processing: React.FC = () => {
     try {
       // 1. Kick off Barcode Detection concurrently across all active panels
       const barcodeDetectionPromise = detectBarcodeAcrossPanels(
-        activePanels.map((p) => ({ id: p.id, label: p.label, blob: p.blob }))
+        activePanels.map((p) => ({ id: p.id, label: p.label, blob: p.useEnhancedForOcr && p.enhancedBlob ? p.enhancedBlob : p.blob }))
       );
 
       // 2. Multi-Panel OCR — every panel gets its own independent OCR attempt
@@ -134,10 +134,11 @@ export const Processing: React.FC = () => {
         );
         setStatusMessage(`Scanning panel ${idx + 1} of ${activePanels.length}: ${panel.label}...`);
 
-        diagLog(`Panel ${idx + 1}/${activePanels.length} OCR STARTING — "${panel.label}" blob.size=${panel.blob?.size ?? 'N/A'}`);
+        const ocrBlob = panel.useEnhancedForOcr && panel.enhancedBlob ? panel.enhancedBlob : panel.blob;
+        diagLog(`Panel ${idx + 1}/${activePanels.length} OCR STARTING — "${panel.label}" source=${panel.useEnhancedForOcr ? 'deterministic-enhanced' : 'original'} blob.size=${ocrBlob?.size ?? 'N/A'}`);
 
         // Validate the blob before attempting OCR
-        if (!panel.blob || panel.blob.size === 0) {
+        if (!ocrBlob || ocrBlob.size === 0) {
           const errMsg = `Image data missing for panel "${panel.label}" (blob is null or zero-size)`;
           diagLog(`  !! Panel ${idx + 1} BLOB MISSING — skipping OCR`);
           setPanelProgress((prev) =>
@@ -158,7 +159,7 @@ export const Processing: React.FC = () => {
 
         try {
           const panelOcr = await defaultOcrService.recognizeWithQuality(
-            panel.blob,
+            ocrBlob,
             (prog, msg) => {
               const base = idx / activePanels.length;
               const slice = 1 / activePanels.length;

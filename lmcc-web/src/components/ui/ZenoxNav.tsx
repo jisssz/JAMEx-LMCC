@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Scale, Menu, X, ChevronRight, Sparkles, House, CircleHelp, History as HistoryIcon, BarChart3 } from 'lucide-react';
+import { Scale, Menu, X, ChevronRight, Sparkles, House, CircleHelp, History as HistoryIcon, BarChart3, WandSparkles, Map } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Badge } from './badge';
 import { Button } from './button';
@@ -23,6 +23,8 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
     { label: 'Rules', path: '/rules', Icon: Scale },
     { label: 'History', path: '/history', Icon: HistoryIcon },
     { label: 'Surveillance', path: '/authority-dashboard', Icon: BarChart3 },
+    { label: 'Image Enhancement', path: '/image-enhancement', Icon: WandSparkles },
+    { label: 'India Map', path: '/india-map', Icon: Map },
   ];
 
   const handleNavClick = (link: typeof navLinks[0]) => {

@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   Lock,
   BarChart3,
+  Map,
+  WandSparkles,
 } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import ZenoxNav from '../components/ui/ZenoxNav';
@@ -255,11 +257,17 @@ export const Home: React.FC = () => {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             <Card className="p-7">
               <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider block">Inspection Evidence</span>
               <div className="font-display text-4xl text-white font-normal mt-2">Multi-panel</div>
               <p className="text-xs text-slate-400 mt-2 font-sans">Combine declarations from multiple package photographs.</p>
+            </Card>
+            <Card className="p-7 cursor-pointer hover:border-violet-400/30" role="button" tabIndex={0} onClick={() => navigate('/image-enhancement')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate('/image-enhancement'); }}>
+              <WandSparkles className="h-5 w-5 text-violet-300"/><span className="mt-3 block text-[11px] font-mono text-slate-500 uppercase tracking-wider">Image Enhancement</span><div className="mt-2 font-display text-2xl text-white">Local tools</div><p className="mt-2 text-xs text-slate-400">Review quality and compare a deterministic working copy.</p>
+            </Card>
+            <Card className="p-7 cursor-pointer hover:border-cyan-400/30" role="button" tabIndex={0} onClick={() => navigate('/india-map')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate('/india-map'); }}>
+              <Map className="h-5 w-5 text-cyan-300"/><span className="mt-3 block text-[11px] font-mono text-slate-500 uppercase tracking-wider">India Compliance Map</span><div className="mt-2 font-display text-2xl text-white">Jurisdictions</div><p className="mt-2 text-xs text-slate-400">Browse states and territories; geographic evidence is clearly scoped.</p>
             </Card>
 
             <Card className="p-7">

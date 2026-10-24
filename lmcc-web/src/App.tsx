@@ -10,6 +10,8 @@ import { History } from './pages/History';
 import { ReportDetail } from './pages/ReportDetail';
 import { AuthorityDashboard } from './pages/AuthorityDashboard';
 import { Rules } from './pages/Rules';
+import { ImageEnhancement } from './pages/ImageEnhancement';
+import { IndiaComplianceMap } from './pages/IndiaComplianceMap';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { InstallPrompt } from './components/InstallPrompt';
 import { UpdatePrompt } from './components/UpdatePrompt';
@@ -51,6 +53,8 @@ export const App: React.FC = () => {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/rules" element={<Rules />} />
+          <Route path="/image-enhancement" element={<ImageEnhancement />} />
+          <Route path="/india-map" element={<IndiaComplianceMap />} />
           <Route path="/scan" element={<Scan />} />
           <Route path="/processing" element={<Processing />} />
           <Route path="/results" element={<Results />} />

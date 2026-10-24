@@ -36,6 +36,8 @@ export const Scan: React.FC = () => {
   const {
     panels,
     addPanel,
+    setPanelEnhancement,
+    setPanelOcrSource,
     addPanels,
     removePanel,
     clearPanels,
@@ -61,6 +63,10 @@ export const Scan: React.FC = () => {
     try {
       const evaluation = await evaluateAndEnhancePackageImage(image);
       setLatestQualityEval(evaluation);
+      const panel = panels.find((item) => item.type === currentPanelType && item.blob === image);
+      // addPanel updates React state asynchronously, so match after the render below instead.
+      if (panel?.id && evaluation.enhancedBlob) setPanelEnhancement(panel.id, evaluation.enhancedBlob);
+      else if (evaluation.enhancedBlob) setPendingEnhancement({ type: currentPanelType, blob: image, enhanced: evaluation.enhancedBlob });
     } catch (err) {
       console.warn("Quality evaluation skipped:", err);
     }
@@ -70,6 +76,16 @@ export const Scan: React.FC = () => {
     else if (currentPanelType === "back") setCurrentPanelType("crimp");
     else setCurrentPanelType("other");
   };
+
+  const [pendingEnhancement, setPendingEnhancement] = useState<{ type: PanelType; blob: Blob | File; enhanced: Blob } | null>(null);
+  React.useEffect(() => {
+    if (!pendingEnhancement) return;
+    const panel = panels.find((item) => item.type === pendingEnhancement.type && item.blob === pendingEnhancement.blob);
+    if (panel) {
+      setPanelEnhancement(panel.id, pendingEnhancement.enhanced);
+      setPendingEnhancement(null);
+    }
+  }, [panels, pendingEnhancement, setPanelEnhancement]);
 
   const handleMultipleImagesReady = async (images: File[]) => {
     addPanels(images);
@@ -228,6 +244,9 @@ export const Scan: React.FC = () => {
 
       {/* 3. MAIN HERO 3-COLUMN EDITORIAL COMPOSITION (Matching Reference) */}
       <main className="relative z-10 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 flex-1 flex flex-col justify-center">
+        <div className="mb-5 rounded-xl border border-violet-400/20 bg-violet-500/[0.06] px-4 py-3 text-xs text-slate-300">
+          <strong className="text-violet-200">Image Enhancement:</strong> optional local contrast and sharpening preview. No AI image-editing provider is configured. Original captures remain available and are used for OCR unless you explicitly choose the enhanced copy below.
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 xl:gap-12 items-center">
 
           {/* ========================================================= */}
@@ -376,7 +395,7 @@ export const Scan: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-3 overflow-x-auto pb-1">
+                <div className="flex items-center gap-3 overflow-x-auto pb-12">
                   {panels.map((panel, idx) => (
                     <div
                       key={panel.id}
@@ -387,6 +406,7 @@ export const Scan: React.FC = () => {
                         alt={panel.label}
                         className="w-full h-full object-cover"
                       />
+                      {panel.enhancedBlob && <span className="absolute top-1 left-1 rounded bg-violet-600/90 px-1 py-0.5 text-[8px] text-white">ENHANCED READY</span>}
                       <span className="absolute bottom-1 left-1 text-[9px] font-sans font-semibold bg-black/75 text-slate-200 px-1 py-0.5 rounded backdrop-blur-sm">
                         0{idx + 1} {panel.type.slice(0, 4).toUpperCase()}
                       </span>
@@ -398,6 +418,10 @@ export const Scan: React.FC = () => {
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
+                      <div className="absolute inset-x-0 -bottom-10 flex items-center justify-center gap-2 text-[9px]">
+                        <label className="flex items-center gap-1 text-slate-300"><input type="radio" name={`ocr-source-${panel.id}`} checked={!panel.useEnhancedForOcr} onChange={() => setPanelOcrSource(panel.id, false)} /> Original</label>
+                        <label className={`flex items-center gap-1 ${panel.enhancedBlob ? 'text-violet-200' : 'text-slate-600'}`}><input type="radio" name={`ocr-source-${panel.id}`} disabled={!panel.enhancedBlob} checked={Boolean(panel.useEnhancedForOcr)} onChange={() => setPanelOcrSource(panel.id, true)} /> Enhanced</label>
+                      </div>
                     </div>
                   ))}
 

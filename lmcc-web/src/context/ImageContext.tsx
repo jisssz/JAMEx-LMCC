@@ -8,6 +8,9 @@ export interface ScanPanel {
   label: string;
   blob: Blob | File;
   previewUrl: string;
+  enhancedBlob?: Blob;
+  enhancementSource?: 'deterministic-local';
+  useEnhancedForOcr?: boolean;
 }
 
 interface ImageContextType {
@@ -26,6 +29,8 @@ interface ImageContextType {
   addPanel: (fileOrBlob: Blob | File, type?: PanelType, customLabel?: string) => boolean;
   addPanels: (filesOrBlobs: (Blob | File)[]) => number;
   updatePanelType: (id: string, type: PanelType, customLabel?: string) => void;
+  setPanelEnhancement: (id: string, enhancedBlob: Blob | undefined) => void;
+  setPanelOcrSource: (id: string, useEnhanced: boolean) => void;
   removePanel: (id: string) => void;
   clearPanels: () => void;
   setCapturedImage: (fileOrBlob: Blob | File | null, fileName?: string) => void;
@@ -136,6 +141,17 @@ export const ImageProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           : p
       )
     );
+  };
+
+  const setPanelEnhancement = (id: string, enhancedBlob: Blob | undefined) => {
+    setPanels((prev) => prev.map((panel) => panel.id === id
+      ? { ...panel, enhancedBlob, enhancementSource: enhancedBlob ? 'deterministic-local' : undefined }
+      : panel));
+  };
+  const setPanelOcrSource = (id: string, useEnhanced: boolean) => {
+    setPanels((prev) => prev.map((panel) => panel.id === id
+      ? { ...panel, useEnhancedForOcr: useEnhanced && Boolean(panel.enhancedBlob) }
+      : panel));
   };
 
   /**
@@ -265,6 +281,8 @@ export const ImageProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         addPanel,
         addPanels,
         updatePanelType,
+        setPanelEnhancement,
+        setPanelOcrSource,
         removePanel,
         clearPanels,
         setCapturedImage,
