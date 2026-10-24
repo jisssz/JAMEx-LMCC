@@ -13,6 +13,7 @@ import { Rules } from './pages/Rules';
 import { ImageEnhancement } from './pages/ImageEnhancement';
 import { IndiaComplianceMap } from './pages/IndiaComplianceMap';
 import { Dashboard } from './pages/Dashboard';
+import { Reports } from './pages/Reports';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { InstallPrompt } from './components/InstallPrompt';
 import { UpdatePrompt } from './components/UpdatePrompt';
@@ -65,7 +66,7 @@ export const App: React.FC = () => {
           <Route path="/authority" element={<AuthorityDashboard />} />
           <Route path="/authority-dashboard" element={<AuthorityDashboard />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/reports" element={<History />} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
