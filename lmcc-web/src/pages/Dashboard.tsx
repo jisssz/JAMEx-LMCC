@@ -295,6 +295,11 @@ export const Dashboard: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3 shrink-0 text-[11px] font-mono">
+            {loading && (
+              <span className="text-slate-400 bg-white/[0.04] px-2.5 py-1 rounded-full border border-white/[0.08] animate-pulse">
+                Syncing Registry...
+              </span>
+            )}
             {reports.length > 0 && (
               <span className="text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
                 {reports.length} Cloud Report{reports.length === 1 ? '' : 's'}
@@ -331,7 +336,7 @@ export const Dashboard: React.FC = () => {
             <div className="mt-4 flex items-baseline justify-between">
               <div>
                 <span className="text-3xl font-bold text-white font-mono leading-none block">
-                  {loading ? '—' : (baselineMetrics.total + filteredReports.length).toLocaleString()}
+                  {(baselineMetrics.total + filteredReports.length).toLocaleString()}
                 </span>
                 <span className="text-xs text-slate-400 mt-1.5 block">Total inspections</span>
               </div>
@@ -375,7 +380,7 @@ export const Dashboard: React.FC = () => {
             <div className="mt-4 flex items-baseline justify-between">
               <div>
                 <span className="text-3xl font-bold text-white font-mono leading-none block">
-                  {loading ? '—' : (baselineMetrics.compliant + livePassCount).toLocaleString()}
+                  {(baselineMetrics.compliant + livePassCount).toLocaleString()}
                 </span>
                 <span className="text-xs text-slate-400 mt-1.5 block">Compliant</span>
               </div>
@@ -409,7 +414,7 @@ export const Dashboard: React.FC = () => {
             <div className="mt-4 flex items-baseline justify-between">
               <div>
                 <span className="text-3xl font-bold text-white font-mono leading-none block">
-                  {loading ? '—' : (baselineMetrics.review + liveReviewCount).toLocaleString()}
+                  {(baselineMetrics.review + liveReviewCount).toLocaleString()}
                 </span>
                 <span className="text-xs text-slate-400 mt-1.5 block">Needs review</span>
               </div>
@@ -443,7 +448,7 @@ export const Dashboard: React.FC = () => {
             <div className="mt-4 flex items-baseline justify-between">
               <div>
                 <span className="text-3xl font-bold text-white font-mono leading-none block">
-                  {loading ? '—' : (baselineMetrics.flagged + liveFlaggedIssues).toLocaleString()}
+                  {(baselineMetrics.flagged + liveFlaggedIssues).toLocaleString()}
                 </span>
                 <span className="text-xs text-slate-400 mt-1.5 block">Flagged declarations</span>
               </div>
