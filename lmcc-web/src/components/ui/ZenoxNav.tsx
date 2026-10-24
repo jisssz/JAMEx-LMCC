@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Scale, Menu, X, ChevronRight, Sparkles } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Scale, Menu, X, ChevronRight, Sparkles, House, CircleHelp, History as HistoryIcon, BarChart3 } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Badge } from './badge';
 import { Button } from './button';
 
@@ -13,13 +13,16 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [hoveredDockIndex, setHoveredDockIndex] = useState<number | null>(null);
+  const [focusedDockIndex, setFocusedDockIndex] = useState<number | null>(null);
+  const reducedMotion = useReducedMotion();
 
   const navLinks = [
-    { label: 'Home', path: '/' },
-    { label: 'How it works', action: 'how-it-works' },
-    { label: 'Rules', path: '/rules' },
-    { label: 'History', path: '/history' },
-    { label: 'Surveillance', path: '/authority-dashboard' },
+    { label: 'Home', path: '/', Icon: House },
+    { label: 'How it works', action: 'how-it-works', Icon: CircleHelp },
+    { label: 'Rules', path: '/rules', Icon: Scale },
+    { label: 'History', path: '/history', Icon: HistoryIcon },
+    { label: 'Surveillance', path: '/authority-dashboard', Icon: BarChart3 },
   ];
 
   const handleNavClick = (link: typeof navLinks[0]) => {
@@ -80,15 +83,30 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
         </div>
 
         {/* Desktop Menu Links */}
-        <div className="hidden md:flex items-center gap-1 bg-white/[0.03] p-1 rounded-full border border-white/[0.05]">
-          {navLinks.map((link) => {
+        <div
+          className="jamex-nav-dock hidden md:flex items-center gap-2 bg-white/[0.03] p-2 rounded-full border border-white/[0.05]"
+          onMouseLeave={() => setHoveredDockIndex(null)}
+        >
+          {navLinks.map((link, index) => {
             const active = isActive(link.path);
+            const Icon = link.Icon;
+            const emphasizedIndex = hoveredDockIndex ?? focusedDockIndex;
+            const distance = emphasizedIndex === null ? Infinity : Math.abs(index - emphasizedIndex);
+            const scale = reducedMotion ? 1 : distance === 0 ? 1.22 : distance === 1 ? 1.1 : 1;
+            const lift = reducedMotion ? 0 : distance === 0 ? -7 : distance === 1 ? -3 : 0;
             return (
-              <button
+              <motion.button
                 key={link.label}
                 type="button"
                 onClick={() => handleNavClick(link)}
-                className={`relative px-4 py-1.5 text-xs font-sans font-medium transition-colors cursor-pointer rounded-full ${
+                onMouseEnter={() => setHoveredDockIndex(index)}
+                onFocus={() => setFocusedDockIndex(index)}
+                onBlur={() => setFocusedDockIndex(null)}
+                animate={{ scale, y: lift }}
+                transition={{ type: 'spring', stiffness: 420, damping: 26, mass: 0.55 }}
+                aria-label={link.label}
+                aria-current={active ? 'page' : undefined}
+                className={`jamex-dock-item relative flex h-11 w-11 items-center justify-center text-xs font-sans font-medium cursor-pointer rounded-full ${
                   active ? 'text-white' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -99,8 +117,9 @@ export const ZenoxNav: React.FC<ZenoxNavProps> = ({ onOpenHowItWorks }) => {
                     transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                   />
                 )}
-                <span className="relative z-10">{link.label}</span>
-              </button>
+                <Icon className="relative z-10 h-[18px] w-[18px]" aria-hidden="true" />
+                <span className={`jamex-dock-tooltip ${distance === 0 || focusedDockIndex === index ? 'is-visible' : ''}`} aria-hidden="true">{link.label}</span>
+              </motion.button>
             );
           })}
         </div>

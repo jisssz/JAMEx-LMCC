@@ -22,6 +22,17 @@ body {
   letter-spacing: -0.01em;
 }
 
+.jamex-nav-dock { isolation: isolate; }
+.jamex-dock-item { isolation: isolate; transform-origin: center bottom; }
+.jamex-dock-item:focus-visible { outline: 2px solid #ff873e; outline-offset: 4px; }
+.jamex-dock-tooltip {
+  position: absolute; z-index: 30; left: 50%; top: -18px; min-width: max-content; padding: 5px 9px;
+  border: 1px solid #ffffff1f; border-radius: 8px; color: #f4f1f7; background: #111018ed;
+  box-shadow: 0 6px 18px #0008; font: 10px/1.2 'Plus Jakarta Sans', sans-serif; pointer-events: none;
+  opacity: 0; transform: translate(-50%, 5px) scale(.9); transition: opacity .16s ease, transform .16s ease;
+}
+.jamex-dock-tooltip.is-visible { opacity: 1; transform: translate(-50%, 0) scale(1); }
+
 /* Hairline borders & refined editorial surfaces */
 .border-hairline {
   border-color: rgba(255, 255, 255, 0.08);

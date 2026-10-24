@@ -45,6 +45,8 @@ export default defineConfig({
                 ],
             },
             workbox: {
+                // The supplied high-resolution packet PNG is 2.31 MiB and should remain available offline.
+                maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,json,woff,woff2}'],
                 navigateFallback: '/index.html',
                 navigateFallbackDenylist: [/^\/api/],
