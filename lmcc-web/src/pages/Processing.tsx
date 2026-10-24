@@ -12,6 +12,7 @@ import { performBarcodeCrossCheck } from '../services/barcode/barcodeCrossCheck'
 import { ProcessingIndicator } from '../components/ProcessingIndicator';
 import './inspection-workspace.css';
 import { parseLabel } from '../services/parser/fieldParser';
+import { saveInspectionSession, ActiveInspectionSession } from '../services/storage/inspectionSession';
 
 // ── Panel-level processing states ────────────────────────────────────────────
 type PanelStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
@@ -331,9 +332,44 @@ export const Processing: React.FC = () => {
 
       diagLog(`PIPELINE COMPLETE — verdict=${verdict.overallStatus}`);
 
+      const inspectionId = `INSP-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+      const now = new Date();
+      const inspectionDate = now.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }) + ', ' + now.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const sessionPanels = activePanels.map((p) => ({
+        id: p.id,
+        type: p.type,
+        label: p.label,
+        previewUrl: p.previewUrl,
+      }));
+
+      const activeSession: ActiveInspectionSession = {
+        inspectionId,
+        inspectionDate,
+        productName: merged.unifiedLabel.productName || 'Scanned Package',
+        imagePreviewUrl: activePanels[0]?.previewUrl || currentImagePreviewUrl || '',
+        panels: sessionPanels,
+        extractedLabel: merged.unifiedLabel,
+        verdict,
+        ocrConfidence: Math.round(merged.averageConfidence || 0),
+        ocrQuality: merged.overallQuality || 'FAIR',
+        isMultiPanel: activePanels.length > 1,
+        isDemo: false,
+      };
+
+      saveInspectionSession(activeSession);
+
       navigate('/results', {
         replace: true,
         state: {
+          session: activeSession,
           extractedLabel: merged.unifiedLabel,
           verdict,
           imageBlob: activePanels[0]?.blob || currentCapturedImage,

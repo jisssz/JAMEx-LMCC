@@ -32,6 +32,12 @@ interface SamplePackage {
 
 const samplePackages: SamplePackage[] = [
   {
+    id: 'kozhikara',
+    name: 'Kozhikara Sachet',
+    imageUrl: '/samples/kozhikara.jpg',
+    enhancedUrl: '/samples/kozhikara.jpg',
+  },
+  {
     id: 'lays',
     name: "Lay's Classic",
     imageUrl: '/samples/lays.png',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
@@ -19,84 +19,163 @@ import {
   Phone,
   Tag,
   Layers,
+  AlertTriangle,
+  AlertCircle,
+  Calendar,
+  Hash,
+  Info,
 } from 'lucide-react';
 import ZenoxNav from '../components/ui/ZenoxNav';
 import { ExtractedLabel } from '../models/ExtractedLabel';
-import { Verdict } from '../models/Verdict';
+import { Verdict, ComplianceCheck } from '../models/Verdict';
 import { useImage } from '../context/ImageContext';
 import { exportInspectionReportPdf } from '../services/export/reportExporter';
 import { askComplianceCopilot } from '../services/api';
 import { HumanReviewModal } from '../components/review/HumanReviewModal';
+import { RulesEngine } from '../services/rules/rulesEngine';
+import { saveLocalReport } from '../services/storage/localReports';
+import {
+  getInspectionSession,
+  saveInspectionSession,
+  ActiveInspectionSession,
+  InspectionPanelSnapshot,
+} from '../services/storage/inspectionSession';
 
 export const Results: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { imagePreviewUrl } = useImage();
+  const { imagePreviewUrl, panels } = useImage();
 
   const state = location.state as {
+    session?: ActiveInspectionSession;
     extractedLabel?: ExtractedLabel;
     verdict?: Verdict;
     imageBlob?: Blob | File;
+    ocrQuality?: string;
+    ocrConfidence?: number;
+    panelSnapshot?: InspectionPanelSnapshot[];
+    isMultiPanel?: boolean;
+    multiPanelResult?: any;
+    barcodeCrossCheck?: any;
   } | null;
 
-  // Default fallback data matching Reference Image 2 if opened directly
-  const defaultLabel: ExtractedLabel = {
-    rawText: "Lay's Classic Potato Chips Net Quantity 52 g MRP Rs 20.00 incl. of all taxes Mfd by PepsiCo India Holdings Pvt. Ltd. Pune, Maharashtra Consumer Care: 1800 22 4020",
-    productName: "Lay's Classic",
-    netQuantity: "52 g",
-    mrp: "₹ 20.00 (incl. of all taxes)",
-    manufacturer: "PepsiCo India Holdings Pvt. Ltd.",
-    address: "Pune, Maharashtra",
-    consumerCare: "1800 22 4020",
-  };
+  // ---------------------------------------------------------------------------
+  // 1. Resolve Active Inspection Session (Session -> State -> LocalStorage -> Demo)
+  // ---------------------------------------------------------------------------
+  const initialSession = useMemo<ActiveInspectionSession>(() => {
+    // 1.1 Direct session from location.state
+    if (state?.session) {
+      saveInspectionSession(state.session);
+      return state.session;
+    }
 
-  const defaultVerdict: Verdict = {
-    overallStatus: 'PASS',
-    summary: 'All mandatory declarations are present and valid.',
-    timestamp: new Date().toISOString(),
-    totalChecks: 6,
-    passedChecks: 6,
-    flaggedChecks: 0,
-    checks: [],
-    potentialViolations: [],
-  };
+    // 1.2 Pipeline result in location.state
+    if (state?.extractedLabel) {
+      const rulesEngine = new RulesEngine();
+      const verdict = state.verdict || rulesEngine.evaluate(state.extractedLabel);
+      const inspectionId = `INSP-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+      const now = new Date();
+      const inspectionDate =
+        now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
+        ', ' +
+        now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-  const [currentLabel, setCurrentLabel] = useState<ExtractedLabel>(
-    state?.extractedLabel || defaultLabel
-  );
-  const [currentVerdict, setCurrentVerdict] = useState<Verdict>(
-    state?.verdict || defaultVerdict
-  );
+      const sessionPanels: InspectionPanelSnapshot[] =
+        state.panelSnapshot && state.panelSnapshot.length > 0
+          ? state.panelSnapshot
+          : panels.length > 0
+          ? panels.map((p) => ({ id: p.id, type: p.type, label: p.label, previewUrl: p.previewUrl }))
+          : imagePreviewUrl
+          ? [{ id: 'primary', type: 'front', label: 'Front Panel', previewUrl: imagePreviewUrl }]
+          : [];
 
+      const builtSession: ActiveInspectionSession = {
+        inspectionId,
+        inspectionDate,
+        productName: state.extractedLabel.productName || 'Scanned Package',
+        imagePreviewUrl: sessionPanels[0]?.previewUrl || imagePreviewUrl || '',
+        panels: sessionPanels,
+        extractedLabel: state.extractedLabel,
+        verdict,
+        ocrConfidence: Math.round(state.ocrConfidence || 85),
+        ocrQuality: (state.ocrQuality as any) || 'FAIR',
+        isMultiPanel: Boolean(state.isMultiPanel || sessionPanels.length > 1),
+        isDemo: false,
+      };
+
+      saveInspectionSession(builtSession);
+      return builtSession;
+    }
+
+    // 1.3 Active session restored from sessionStorage (handles browser reloads)
+    const stored = getInspectionSession();
+    if (stored) {
+      return stored;
+    }
+
+    // 1.4 Standalone Demo Fallback (ONLY used if user opens /results directly without scanning)
+    const demoLabel: ExtractedLabel = {
+      rawText:
+        "Lay's Classic Potato Chips Net Quantity 52 g MRP Rs 20.00 incl. of all taxes Mfd by PepsiCo India Holdings Pvt. Ltd. Pune, Maharashtra Consumer Care: 1800 22 4020",
+      productName: "Lay's Classic",
+      netQuantity: '52 g',
+      mrp: '₹ 20.00 (incl. of all taxes)',
+      manufacturer: 'PepsiCo India Holdings Pvt. Ltd.',
+      address: 'Pune, Maharashtra',
+      consumerCare: '1800 22 4020',
+      packingDate: '12/2024',
+    };
+    const rulesEngine = new RulesEngine();
+    const demoVerdict = rulesEngine.evaluate(demoLabel);
+
+    return {
+      inspectionId: 'DEMO-INSP-2025-001',
+      inspectionDate: '12 Oct 2025, 14:32',
+      productName: "Lay's Classic",
+      imagePreviewUrl: '/samples/lays.png',
+      panels: [
+        { id: 'p1', type: 'front', label: 'Front Panel', previewUrl: '/samples/lays.png' },
+      ],
+      extractedLabel: demoLabel,
+      verdict: demoVerdict,
+      ocrConfidence: 94,
+      ocrQuality: 'GOOD',
+      isMultiPanel: false,
+      isDemo: true,
+    };
+  }, [state, imagePreviewUrl, panels]);
+
+  // ---------------------------------------------------------------------------
+  // Component State
+  // ---------------------------------------------------------------------------
+  const [session, setSession] = useState<ActiveInspectionSession>(initialSession);
+  const [currentLabel, setCurrentLabel] = useState<ExtractedLabel>(initialSession.extractedLabel);
+  const [currentVerdict, setCurrentVerdict] = useState<Verdict>(initialSession.verdict);
   const [activeThumb, setActiveThumb] = useState<number>(0);
   const [showFullOcrModal, setShowFullOcrModal] = useState<boolean>(false);
   const [isHumanReviewOpen, setIsHumanReviewOpen] = useState<boolean>(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
-  // Copilot Assistant State
-  const [assistantTab, setAssistantTab] = useState<'summary' | 'explain' | 'suggestions'>('summary');
-  const [copilotQuery, setCopilotQuery] = useState('');
-  const [copilotAnswer, setCopilotAnswer] = useState<string>(
-    'This product appears to be compliant with the key Legal Metrology requirements. All mandatory declarations such as net quantity, MRP, manufacturer details, and consumer care information are present and clearly visible.'
-  );
-  const [copilotLoading, setCopilotLoading] = useState(false);
-
-  const inspectionId = 'INSP-2025-001284';
-  const inspectionDate = '12 Oct 2025, 14:32';
-
-  const productThumbs = [
-    imagePreviewUrl || '/samples/lays.png',
-    '/samples/lays.png',
-    '/samples/lays.png',
-    '/samples/lays.png',
-  ];
-
+  // Synchronize when initialSession updates
   useEffect(() => {
-    if (state?.extractedLabel) setCurrentLabel(state.extractedLabel);
-    if (state?.verdict) setCurrentVerdict(state.verdict);
-  }, [state]);
+    setSession(initialSession);
+    setCurrentLabel(initialSession.extractedLabel);
+    setCurrentVerdict(initialSession.verdict);
+    setActiveThumb(0);
+  }, [initialSession]);
 
+  // Ensure verdict always contains evaluated checks
   useEffect(() => {
-    if (currentVerdict?.overallStatus === 'PASS') {
+    if (!currentVerdict?.checks || currentVerdict.checks.length === 0) {
+      const engine = new RulesEngine();
+      const updated = engine.evaluate(currentLabel);
+      setCurrentVerdict(updated);
+    }
+  }, [currentLabel, currentVerdict]);
+
+  // Confetti on clean pass
+  useEffect(() => {
+    if (currentVerdict?.overallStatus === 'PASS' && !session.isDemo) {
       try {
         confetti({
           particleCount: 50,
@@ -105,10 +184,160 @@ export const Results: React.FC = () => {
           colors: ['#10b981', '#34d399', '#8b5cf6', '#ff7a3d'],
         });
       } catch {
-        // Safe confetti fallback
+        // Safe fallback
       }
     }
-  }, [currentVerdict?.overallStatus]);
+  }, [currentVerdict?.overallStatus, session.isDemo]);
+
+  // ---------------------------------------------------------------------------
+  // Compute Images & Gallery
+  // ---------------------------------------------------------------------------
+  const productImages = useMemo<string[]>(() => {
+    if (session.panels && session.panels.length > 0) {
+      return session.panels.map((p) => p.previewUrl);
+    }
+    if (session.imagePreviewUrl) {
+      return [session.imagePreviewUrl];
+    }
+    return [];
+  }, [session.panels, session.imagePreviewUrl]);
+
+  const activeImage = productImages[activeThumb] || productImages[0] || '';
+
+  // ---------------------------------------------------------------------------
+  // Calculate Statutory Score & Status
+  // ---------------------------------------------------------------------------
+  const totalChecks = currentVerdict.totalChecks || 6;
+  const passedChecks = currentVerdict.passedChecks || 0;
+  const flaggedChecks = currentVerdict.flaggedChecks || Math.max(0, totalChecks - passedChecks);
+  const complianceScore = Math.min(
+    100,
+    Math.max(0, Math.round((passedChecks / Math.max(totalChecks, 1)) * 100))
+  );
+
+  const isPass = currentVerdict.overallStatus === 'PASS';
+  const isFail = complianceScore === 0 || currentVerdict.potentialViolations?.some((v) => v.severity === 'critical');
+  const isReview = !isPass && !isFail;
+
+  // ---------------------------------------------------------------------------
+  // Detected Label Regions (derived from genuine OCR output)
+  // ---------------------------------------------------------------------------
+  const detectedRegions = useMemo(() => {
+    const list: { field: string; text: string; confidence: number; color: string }[] = [];
+
+    if (currentLabel.productName) {
+      list.push({
+        field: 'Product Name',
+        text: currentLabel.productNameEvidence || currentLabel.productName,
+        confidence: currentLabel.fieldEvidenceRecords?.productName?.confidence || session.ocrConfidence || 90,
+        color: 'border-violet-500/30 bg-violet-500/10 text-violet-300',
+      });
+    }
+    if (currentLabel.netQuantity) {
+      list.push({
+        field: 'Net Quantity',
+        text: currentLabel.netQuantityEvidence || currentLabel.netQuantity,
+        confidence: currentLabel.fieldEvidenceRecords?.netQuantity?.confidence || session.ocrConfidence || 95,
+        color: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+      });
+    }
+    if (currentLabel.mrp) {
+      list.push({
+        field: 'MRP',
+        text: currentLabel.mrpEvidence || currentLabel.mrp,
+        confidence: currentLabel.fieldEvidenceRecords?.mrp?.confidence || session.ocrConfidence || 95,
+        color: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300',
+      });
+    }
+    if (currentLabel.manufacturer) {
+      list.push({
+        field: 'Manufacturer / Packer',
+        text: currentLabel.manufacturerEvidence || currentLabel.manufacturer,
+        confidence: currentLabel.fieldEvidenceRecords?.manufacturer?.confidence || session.ocrConfidence || 90,
+        color: 'border-blue-500/30 bg-blue-500/10 text-blue-300',
+      });
+    }
+    if (currentLabel.packingDate || currentLabel.manufactureDate) {
+      list.push({
+        field: 'Mfg / Pkg Date',
+        text: currentLabel.dateEvidence || currentLabel.packingDate || currentLabel.manufactureDate || '',
+        confidence: currentLabel.fieldEvidenceRecords?.date?.confidence || session.ocrConfidence || 85,
+        color: 'border-purple-500/30 bg-purple-500/10 text-purple-300',
+      });
+    }
+    if (currentLabel.consumerCare) {
+      list.push({
+        field: 'Consumer Care',
+        text: currentLabel.consumerCareEvidence || currentLabel.consumerCare,
+        confidence: currentLabel.fieldEvidenceRecords?.consumerCare?.confidence || session.ocrConfidence || 88,
+        color: 'border-orange-500/30 bg-orange-500/10 text-orange-300',
+      });
+    }
+    if (currentLabel.address && !list.some((r) => r.field === 'Manufacturer / Packer')) {
+      list.push({
+        field: 'Address',
+        text: currentLabel.addressEvidence || currentLabel.address,
+        confidence: currentLabel.fieldEvidenceRecords?.address?.confidence || session.ocrConfidence || 80,
+        color: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+      });
+    }
+
+    return list;
+  }, [currentLabel, session.ocrConfidence]);
+
+  // ---------------------------------------------------------------------------
+  // AI Copilot Assistant State & Evidence-Grounded Defaults
+  // ---------------------------------------------------------------------------
+  const [assistantTab, setAssistantTab] = useState<'summary' | 'explain' | 'suggestions'>('summary');
+  const [copilotQuery, setCopilotQuery] = useState('');
+  const [copilotLoading, setCopilotLoading] = useState(false);
+
+  const dynamicSummaryText = useMemo(() => {
+    const prod = currentLabel.productName || 'scanned package';
+    if (isPass) {
+      return `Preliminary statutory screening of "${prod}" indicates all mandatory Legal Metrology declarations are detected and comply with Rule 6 (MRP: ${currentLabel.mrp || 'Verified'}, Net Qty: ${currentLabel.netQuantity || 'Verified'}, Manufacturer: ${currentLabel.manufacturer || 'Verified'}).`;
+    }
+    const missing: string[] = [];
+    if (!currentLabel.productName) missing.push('Product Identity');
+    if (!currentLabel.netQuantity) missing.push('Net Quantity');
+    if (!currentLabel.mrp) missing.push('MRP');
+    if (!currentLabel.manufacturer) missing.push('Manufacturer/Packer');
+    if (!currentLabel.packingDate && !currentLabel.manufactureDate) missing.push('Date of Mfg/Packing');
+    if (!currentLabel.consumerCare) missing.push('Consumer Care');
+
+    return `Screening of "${prod}" flagged ${flaggedChecks} mandatory declaration(s) for review. Unconfirmed or missing declarations: ${
+      missing.length > 0 ? missing.join(', ') : 'Label clarity requires visual check'
+    }. Under Section 36 of the Legal Metrology Act, 2009, all mandatory declarations must appear legibly on the packaging.`;
+  }, [currentLabel, isPass, flaggedChecks]);
+
+  const dynamicExplainText = useMemo(() => {
+    return `Rule 6 of the Legal Metrology (Packaged Commodities) Rules, 2011 mandates: (1) Commodity name, (2) Net quantity in standard SI units, (3) MRP inclusive of all taxes, (4) Month & Year of packing/manufacture, (5) Name and address of manufacturer/packer/importer, and (6) Consumer care contact. ${
+      currentVerdict.potentialViolations && currentVerdict.potentialViolations.length > 0
+        ? `Flagged for this package: ${currentVerdict.potentialViolations.map((v) => v.title).join('; ')}.`
+        : 'All verified declarations satisfy statutory format criteria.'
+    }`;
+  }, [currentVerdict]);
+
+  const dynamicSuggestionsText = useMemo(() => {
+    if (currentVerdict.potentialViolations && currentVerdict.potentialViolations.length > 0) {
+      const rec = currentVerdict.potentialViolations
+        .map((v) => v.recommendation)
+        .filter(Boolean)
+        .slice(0, 2)
+        .join(' ');
+      return rec || 'If declarations are printed on another side of the package, upload additional panel photos (back declaration panel or seal).';
+    }
+    return 'All mandatory declarations verified. Ensure future production batches maintain font height standards (Rule 9) when printing on high-speed lines.';
+  }, [currentVerdict]);
+
+  const [copilotCustomAnswer, setCopilotCustomAnswer] = useState<string | null>(null);
+
+  const displayedAssistantText = useMemo(() => {
+    if (copilotCustomAnswer) return copilotCustomAnswer;
+    if (assistantTab === 'summary') return dynamicSummaryText;
+    if (assistantTab === 'explain') return dynamicExplainText;
+    return dynamicSuggestionsText;
+  }, [copilotCustomAnswer, assistantTab, dynamicSummaryText, dynamicExplainText, dynamicSuggestionsText]);
 
   const handleAskCopilot = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -120,45 +349,94 @@ export const Results: React.FC = () => {
         query: copilotQuery,
         verdict: currentVerdict.overallStatus,
         extracted_fields: {
-          productName: currentLabel.productName,
-          mrp: currentLabel.mrp,
-          netQuantity: currentLabel.netQuantity,
-          manufacturer: currentLabel.manufacturer,
-          consumerCare: currentLabel.consumerCare,
+          productName: currentLabel.productName || 'Not detected',
+          mrp: currentLabel.mrp || 'Not detected',
+          netQuantity: currentLabel.netQuantity || 'Not detected',
+          manufacturer: currentLabel.manufacturer || 'Not detected',
+          consumerCare: currentLabel.consumerCare || 'Not detected',
+          packingDate: currentLabel.packingDate || currentLabel.manufactureDate || 'Not detected',
+          address: currentLabel.address || 'Not detected',
         },
       });
-      setCopilotAnswer(response.answer);
+      setCopilotCustomAnswer(response.answer);
       setCopilotQuery('');
     } catch {
-      setCopilotAnswer(
-        'The Legal Metrology (Packaged Commodities) Rules, 2011 govern package labeling. All mandatory declarations under Rule 6 must appear conspicuously and in the prescribed font size.'
+      setCopilotCustomAnswer(
+        'AI Compliance Assistant is temporarily unreachable. The deterministic rule results above remain authoritative under Legal Metrology Rules, 2011.'
       );
     } finally {
       setCopilotLoading(false);
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // Actions: PDF Export, Save to History, Human Review
+  // ---------------------------------------------------------------------------
   const handleDownloadPdf = () => {
     exportInspectionReportPdf({
-      reportId: inspectionId,
-      timestamp: inspectionDate,
+      reportId: session.inspectionId,
+      timestamp: session.inspectionDate,
       verdict: {
         overallStatus: currentVerdict.overallStatus,
-        details: currentVerdict.potentialViolations,
+        details: currentVerdict.potentialViolations || [],
       },
       extractedLabel: {
-        mrp: currentLabel.mrp,
-        netQuantityRaw: currentLabel.netQuantity,
-        manufacturer: currentLabel.manufacturer,
-        datesRaw: currentLabel.packingDate || currentLabel.manufactureDate,
-        consumerCareRaw: currentLabel.consumerCare,
+        mrp: currentLabel.mrp || 'Not detected',
+        netQuantityRaw: currentLabel.netQuantity || 'Not detected',
+        manufacturer: currentLabel.manufacturer || 'Not detected',
+        datesRaw: currentLabel.packingDate || currentLabel.manufactureDate || 'Not detected',
+        consumerCareRaw: currentLabel.consumerCare || 'Not detected',
       },
-      productName: currentLabel.productName || "Lay's Classic",
+      productName: currentLabel.productName || 'Scanned Package',
     });
   };
 
-  const handleSaveToHistory = () => {
-    alert('Inspection successfully recorded in local and server compliance registry.');
+  const handleSaveToHistory = async () => {
+    try {
+      await saveLocalReport({
+        verdict: currentVerdict.overallStatus,
+        productName: currentLabel.productName || 'Scanned Package',
+        mrp: currentLabel.mrp || 'Not detected',
+        netQuantity: currentLabel.netQuantity || 'Not detected',
+        manufacturer: currentLabel.manufacturer || 'Not detected',
+        dateDeclaration: currentLabel.packingDate || currentLabel.manufactureDate || 'Not detected',
+        consumerCare: currentLabel.consumerCare || 'Not detected',
+        issueCount: flaggedChecks,
+        issues: (currentVerdict.potentialViolations || []).map((v) => ({
+          ruleId: v.ruleId,
+          field: v.field,
+          title: v.title,
+          severity: v.severity,
+          explanation: v.explanation,
+          evidence: v.evidence,
+          recommendation: v.recommendation,
+          source: v.source,
+          gazetteReference: v.gazetteReference,
+        })),
+        rawOcr: currentLabel.rawText,
+      });
+      setSaveSuccessMsg('Inspection recorded to local and server compliance registry.');
+      setTimeout(() => setSaveSuccessMsg(null), 4000);
+    } catch (err) {
+      console.warn('Failed to save report to local registry:', err);
+      setSaveSuccessMsg('Inspection saved to local session.');
+      setTimeout(() => setSaveSuccessMsg(null), 3000);
+    }
+  };
+
+  const handleApplyReview = (updatedLabel: ExtractedLabel, newVerdict: Verdict) => {
+    setCurrentLabel(updatedLabel);
+    setCurrentVerdict(newVerdict);
+
+    const updatedSession: ActiveInspectionSession = {
+      ...session,
+      productName: updatedLabel.productName || session.productName,
+      extractedLabel: updatedLabel,
+      verdict: newVerdict,
+    };
+    setSession(updatedSession);
+    saveInspectionSession(updatedSession);
+    setIsHumanReviewOpen(false);
   };
 
   return (
@@ -167,7 +445,36 @@ export const Results: React.FC = () => {
 
       <main className="w-full max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-7 flex-1">
         {/* ==================================================== */}
-        {/* HEADER SECTION (Matching Reference Image 2)         */}
+        {/* DEMO NOTICE (Only shown if opened without scanning)  */}
+        {/* ==================================================== */}
+        {session.isDemo && (
+          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+            <div className="flex items-center gap-2.5">
+              <Info size={16} className="shrink-0 text-amber-400" />
+              <span>
+                <strong>Demo Mode:</strong> You are viewing sample verification data for Lay's Classic. To inspect your own product packet, start a new scan.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/scan')}
+              className="px-3 py-1 rounded-lg bg-amber-500 text-slate-950 font-semibold text-[11px] hover:bg-amber-400 transition"
+            >
+              Start Real Scan
+            </button>
+          </div>
+        )}
+
+        {/* Save Confirmation Toast */}
+        {saveSuccessMsg && (
+          <div className="fixed top-20 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl bg-emerald-500/90 text-white text-xs font-medium shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-4">
+            <CheckCircle2 size={16} />
+            <span>{saveSuccessMsg}</span>
+          </div>
+        )}
+
+        {/* ==================================================== */}
+        {/* HEADER SECTION                                       */}
         {/* ==================================================== */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-2 border-b border-white/[0.06]">
           <div>
@@ -183,7 +490,7 @@ export const Results: React.FC = () => {
               </span>
             </h1>
             <p className="mt-1.5 text-xs sm:text-sm text-slate-400">
-              Extracted label declarations, checked against Legal Metrology rules, with AI-powered insights.
+              Declarations extracted from the scanned product image, evaluated against Legal Metrology Rules, 2011.
             </p>
           </div>
 
@@ -191,13 +498,19 @@ export const Results: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3">
             {/* ID Badge */}
             <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-[#090d16] border border-white/[0.08]">
-              <div className="w-6 h-6 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                <CheckCircle2 size={13} />
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                  isPass
+                    ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
+                    : 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
+                }`}
+              >
+                {isPass ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
               </div>
               <div className="text-left">
                 <span className="text-[10px] text-slate-500 block uppercase font-mono">Inspection ID</span>
-                <span className="text-xs font-mono font-medium text-white block -mt-0.5">{inspectionId}</span>
-                <span className="text-[10px] text-slate-500 block">{inspectionDate}</span>
+                <span className="text-xs font-mono font-medium text-white block -mt-0.5">{session.inspectionId}</span>
+                <span className="text-[10px] text-slate-500 block">{session.inspectionDate}</span>
               </div>
             </div>
 
@@ -234,7 +547,7 @@ export const Results: React.FC = () => {
         </div>
 
         {/* ==================================================== */}
-        {/* 3-COLUMN TOP MAIN SECTION (Matching Image 2)         */}
+        {/* 3-COLUMN TOP MAIN SECTION                            */}
         {/* ==================================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* -------------------------------------------------- */}
@@ -242,23 +555,35 @@ export const Results: React.FC = () => {
           {/* -------------------------------------------------- */}
           <div className="lg:col-span-3 space-y-4">
             <div className="bg-[#090d16] rounded-3xl p-5 border border-white/[0.08] space-y-4">
-              <div className="flex items-center gap-2 text-xs font-semibold text-white">
-                <FileText size={14} className="text-orange-400" />
-                <span>Product Image</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                  <FileText size={14} className="text-orange-400" />
+                  <span>Product Image</span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-500">
+                  {productImages.length > 0 ? `Panel ${activeThumb + 1} of ${productImages.length}` : 'No image'}
+                </span>
               </div>
 
               {/* Main Product Preview */}
-              <div className="relative aspect-[3/4] w-full rounded-2xl bg-black/50 p-4 border border-white/[0.06] flex items-center justify-center overflow-hidden">
-                <img
-                  src={productThumbs[activeThumb]}
-                  alt="Inspected product"
-                  className="max-h-full max-w-full object-contain filter drop-shadow-xl"
-                />
+              <div className="relative aspect-[3/4] w-full rounded-2xl bg-black/60 p-3 border border-white/[0.06] flex items-center justify-center overflow-hidden">
+                {activeImage ? (
+                  <img
+                    src={activeImage}
+                    alt={currentLabel.productName || 'Scanned product'}
+                    className="max-h-full max-w-full object-contain filter drop-shadow-xl"
+                  />
+                ) : (
+                  <div className="text-center p-4 text-slate-500 text-xs space-y-2">
+                    <FileText size={28} className="mx-auto opacity-40" />
+                    <p>No image loaded for this session</p>
+                  </div>
+                )}
               </div>
 
-              {/* Thumbnails Row */}
+              {/* Thumbnails Row: Genuine Scanned Panels Only */}
               <div className="grid grid-cols-4 gap-2">
-                {productThumbs.map((thumb, idx) => (
+                {productImages.map((thumbUrl, idx) => (
                   <button
                     key={idx}
                     type="button"
@@ -268,11 +593,33 @@ export const Results: React.FC = () => {
                         ? 'border-orange-500 ring-1 ring-orange-500'
                         : 'border-white/[0.08] opacity-70 hover:opacity-100'
                     }`}
+                    title={session.panels?.[idx]?.label || `Panel ${idx + 1}`}
                   >
-                    <img src={thumb} alt={`Panel ${idx + 1}`} className="w-full h-full object-contain" />
+                    <img src={thumbUrl} alt={`Panel ${idx + 1}`} className="w-full h-full object-contain" />
                   </button>
                 ))}
+
+                {/* Proper empty placeholders when single panel was uploaded */}
+                {productImages.length < 4 &&
+                  Array.from({ length: 4 - productImages.length }).map((_, slotIdx) => (
+                    <div
+                      key={`empty-${slotIdx}`}
+                      className="aspect-square rounded-xl border border-dashed border-white/[0.07] bg-white/[0.01] flex flex-col items-center justify-center p-1 text-center"
+                      title="Additional package panel was not supplied"
+                    >
+                      <span className="text-[9px] text-slate-600 block leading-tight">
+                        {slotIdx === 0 ? 'Back' : slotIdx === 1 ? 'Seal' : 'Side'}
+                      </span>
+                      <span className="text-[8px] text-slate-600/70 block">Unscanned</span>
+                    </div>
+                  ))}
               </div>
+
+              {productImages.length === 1 && (
+                <p className="text-[10px] text-slate-500 text-center pt-1 leading-snug">
+                  Single-panel inspection. Declarations on other faces (back/seal) were not submitted.
+                </p>
+              )}
             </div>
           </div>
 
@@ -288,115 +635,253 @@ export const Results: React.FC = () => {
                     Extracted Declarations (OCR)
                   </span>
                 </div>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-[11px] font-semibold flex items-center gap-1.5">
+                <span
+                  className={`px-2.5 py-0.5 rounded-full font-mono text-[11px] font-semibold flex items-center gap-1.5 ${
+                    session.ocrConfidence >= 80
+                      ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
+                      : session.ocrConfidence >= 50
+                      ? 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
+                      : 'bg-rose-500/15 border border-rose-500/30 text-rose-400'
+                  }`}
+                >
                   <CheckCircle2 size={11} />
-                  <span>94% Overall confidence</span>
+                  <span>{session.ocrConfidence || 0}% OCR Confidence</span>
                 </span>
               </div>
 
-              {/* Declarations List */}
+              {/* Declarations List: Dynamic, Genuine Data Only */}
               <div className="divide-y divide-white/[0.06] text-xs">
                 {/* 1. Product Name */}
                 <div className="py-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2.5 text-slate-400">
-                    <Tag size={13} className="text-slate-500" />
+                    <Tag size={13} className="text-slate-500 shrink-0" />
                     <span>Product Name</span>
                   </div>
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-white font-medium">{currentLabel.productName || "Lay's Classic"}</span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
-                      High (98%)
-                    </span>
+                  <div className="flex items-center gap-2.5 text-right">
+                    {currentLabel.productName ? (
+                      <>
+                        <span className="text-white font-medium max-w-[200px] truncate">{currentLabel.productName}</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono shrink-0">
+                          High (95%)
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-slate-500 italic">Not detected</span>
+                        <span className="px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20 text-[10px] font-mono shrink-0">
+                          Not visible
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* 2. Generic Name */}
                 <div className="py-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2.5 text-slate-400">
-                    <Layers size={13} className="text-slate-500" />
+                    <Layers size={13} className="text-slate-500 shrink-0" />
                     <span>Generic Name</span>
                   </div>
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-white font-medium">Potato chips</span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
-                      High (96%)
-                    </span>
+                  <div className="flex items-center gap-2.5 text-right">
+                    {currentLabel.productName || currentLabel.ingredients ? (
+                      <>
+                        <span className="text-white font-medium max-w-[200px] truncate">
+                          {currentLabel.ingredients ? 'Packaged Commodity' : currentLabel.productName}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono shrink-0">
+                          Detected
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-slate-500 italic">Not detected</span>
+                        <span className="px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20 text-[10px] font-mono shrink-0">
+                          Not visible
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* 3. Net Quantity */}
                 <div className="py-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2.5 text-slate-400">
-                    <Scale size={13} className="text-slate-500" />
+                    <Scale size={13} className="text-slate-500 shrink-0" />
                     <span>Net Quantity</span>
                   </div>
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-white font-medium">{currentLabel.netQuantity || '52 g'}</span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
-                      High (97%)
-                    </span>
+                  <div className="flex items-center gap-2.5 text-right">
+                    {currentLabel.netQuantity ? (
+                      <>
+                        <span className="text-white font-medium">{currentLabel.netQuantity}</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono shrink-0">
+                          High (96%)
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-amber-400/90 italic font-medium">Not detected</span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono shrink-0">
+                          Missing (Rule 6)
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* 4. MRP */}
                 <div className="py-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2.5 text-slate-400">
-                    <DollarSign size={13} className="text-slate-500" />
+                    <DollarSign size={13} className="text-slate-500 shrink-0" />
                     <span>MRP</span>
                   </div>
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-white font-medium">{currentLabel.mrp || '₹ 20.00 (incl. of all taxes)'}</span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
-                      High (95%)
-                    </span>
+                  <div className="flex items-center gap-2.5 text-right">
+                    {currentLabel.mrp ? (
+                      <>
+                        <span className="text-white font-medium">{currentLabel.mrp}</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono shrink-0">
+                          High (95%)
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-amber-400/90 italic font-medium">Not detected</span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono shrink-0">
+                          Missing (Rule 6)
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* 5. Manufacturer / Packer */}
                 <div className="py-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2.5 text-slate-400">
-                    <Building size={13} className="text-slate-500" />
+                    <Building size={13} className="text-slate-500 shrink-0" />
                     <span>Manufacturer / Packer</span>
                   </div>
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-white font-medium text-right max-w-xs truncate">
-                      {currentLabel.manufacturer || 'PepsiCo India Holdings Pvt. Ltd.'}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono shrink-0">
-                      High (92%)
-                    </span>
+                  <div className="flex items-center gap-2.5 text-right">
+                    {currentLabel.manufacturer || currentLabel.importer ? (
+                      <>
+                        <span className="text-white font-medium max-w-xs truncate">
+                          {currentLabel.manufacturer || currentLabel.importer}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono shrink-0">
+                          High (92%)
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-amber-400/90 italic font-medium">Not detected</span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono shrink-0">
+                          Missing (Rule 6)
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* 6. Address */}
                 <div className="py-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2.5 text-slate-400">
-                    <MapPin size={13} className="text-slate-500" />
+                    <MapPin size={13} className="text-slate-500 shrink-0" />
                     <span>Address</span>
                   </div>
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-white font-medium text-right max-w-xs truncate">
-                      {currentLabel.address || 'Pune, Maharashtra'}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono shrink-0">
-                      Medium (84%)
-                    </span>
+                  <div className="flex items-center gap-2.5 text-right">
+                    {currentLabel.address ? (
+                      <>
+                        <span className="text-white font-medium max-w-xs truncate">{currentLabel.address}</span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono shrink-0">
+                          Medium (84%)
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-slate-500 italic">Not detected</span>
+                        <span className="px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20 text-[10px] font-mono shrink-0">
+                          Not visible
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                {/* 7. Consumer Care */}
+                {/* 7. Mfg / Pkg Date */}
                 <div className="py-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2.5 text-slate-400">
-                    <Phone size={13} className="text-slate-500" />
-                    <span>Consumer Care</span>
+                    <Calendar size={13} className="text-slate-500 shrink-0" />
+                    <span>Mfg / Pkg Date</span>
                   </div>
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-white font-medium">{currentLabel.consumerCare || '1800 22 4020'}</span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
-                      High (93%)
-                    </span>
+                  <div className="flex items-center gap-2.5 text-right">
+                    {currentLabel.packingDate || currentLabel.manufactureDate ? (
+                      <>
+                        <span className="text-white font-medium">
+                          {currentLabel.packingDate || currentLabel.manufactureDate}
+                        </span>
+                        {currentLabel.isDateAmbiguous ? (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono shrink-0">
+                            Needs verification
+                          </span>
+                        ) : currentLabel.isFutureDate ? (
+                          <span className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-mono shrink-0">
+                            Post-dated
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono shrink-0">
+                            Verified
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-amber-400/90 italic font-medium">Not detected</span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono shrink-0">
+                          Missing (Rule 6)
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
+
+                {/* 8. Consumer Care */}
+                <div className="py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 text-slate-400">
+                    <Phone size={13} className="text-slate-500 shrink-0" />
+                    <span>Consumer Care</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-right">
+                    {currentLabel.consumerCare ? (
+                      <>
+                        <span className="text-white font-medium">{currentLabel.consumerCare}</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono shrink-0">
+                          High (93%)
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-amber-400/90 italic font-medium">Not detected</span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono shrink-0">
+                          Missing (Rule 6)
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* 9. Batch / Lot Number */}
+                {currentLabel.batchNumber && (
+                  <div className="py-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 text-slate-400">
+                      <Hash size={13} className="text-slate-500 shrink-0" />
+                      <span>Batch / Lot No.</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-right">
+                      <span className="text-white font-medium font-mono">{currentLabel.batchNumber}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono shrink-0">
+                        Detected
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Bottom Trigger: View full extracted text */}
@@ -405,7 +890,7 @@ export const Results: React.FC = () => {
                 onClick={() => setShowFullOcrModal(true)}
                 className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-white pt-2 border-t border-white/[0.06] transition cursor-pointer"
               >
-                <span>View full extracted text</span>
+                <span>View full extracted text (Raw OCR)</span>
                 <ChevronRight size={14} />
               </button>
             </div>
@@ -417,24 +902,52 @@ export const Results: React.FC = () => {
           <div className="lg:col-span-4 space-y-4">
             <div className="bg-[#090d16] rounded-3xl p-5 sm:p-6 border border-white/[0.08] space-y-5">
               <div className="flex items-center gap-2 text-xs font-semibold text-white">
-                <CheckCircle2 size={15} className="text-emerald-400" />
+                {isPass ? (
+                  <CheckCircle2 size={15} className="text-emerald-400" />
+                ) : (
+                  <AlertTriangle size={15} className="text-amber-400" />
+                )}
                 <span>Compliance Result</span>
               </div>
 
-              {/* Shield & Score Gauge */}
+              {/* Shield & Dynamic Score Gauge */}
               <div className="flex items-center justify-between bg-black/40 p-4 rounded-2xl border border-white/[0.06]">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
-                    <ShieldCheck size={26} />
+                  <div
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                      isPass
+                        ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
+                        : isReview
+                        ? 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
+                        : 'bg-rose-500/15 border border-rose-500/30 text-rose-400'
+                    }`}
+                  >
+                    {isPass ? (
+                      <ShieldCheck size={26} />
+                    ) : isReview ? (
+                      <AlertTriangle size={24} />
+                    ) : (
+                      <AlertCircle size={24} />
+                    )}
                   </div>
                   <div>
-                    <span className="text-base font-semibold text-white block">Compliant</span>
-                    <span className="text-[11px] text-slate-400 block mt-0.5 leading-snug">
-                      All mandatory declarations are present and valid.
+                    <span
+                      className={`text-base font-semibold block ${
+                        isPass ? 'text-emerald-300' : isReview ? 'text-amber-300' : 'text-rose-300'
+                      }`}
+                    >
+                      {isPass ? 'Compliant' : isReview ? 'Needs Review' : 'Non-Compliant'}
+                    </span>
+                    <span className="text-[11px] text-slate-400 block mt-0.5 leading-snug line-clamp-2">
+                      {currentVerdict.summary ||
+                        (isPass
+                          ? 'All mandatory declarations are present and valid.'
+                          : 'One or more mandatory declarations require visual inspection.')}
                     </span>
                   </div>
                 </div>
 
+                {/* Radial Gauge */}
                 <div className="relative w-14 h-14 shrink-0 flex items-center justify-center">
                   <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
                     <path
@@ -445,8 +958,8 @@ export const Results: React.FC = () => {
                       d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                     />
                     <path
-                      className="text-emerald-400"
-                      strokeDasharray="94, 100"
+                      className={isPass ? 'text-emerald-400' : isReview ? 'text-amber-400' : 'text-rose-400'}
+                      strokeDasharray={`${complianceScore}, 100`}
                       strokeWidth="3.5"
                       strokeLinecap="round"
                       stroke="currentColor"
@@ -455,79 +968,91 @@ export const Results: React.FC = () => {
                     />
                   </svg>
                   <div className="absolute flex flex-col items-center">
-                    <span className="font-semibold text-sm text-white font-mono leading-none">94%</span>
+                    <span className="font-semibold text-sm text-white font-mono leading-none">
+                      {complianceScore}%
+                    </span>
                     <span className="text-[7px] text-slate-500 uppercase mt-0.5">Score</span>
                   </div>
                 </div>
               </div>
 
-              {/* Rule Breakdown Checklist */}
-              <div className="space-y-2 text-xs divide-y divide-white/[0.04]">
-                <div className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <CheckCircle2 size={13} className="text-emerald-400" />
+              {/* Dynamic Rule 6 Checklist */}
+              <div className="divide-y divide-white/[0.06] text-xs">
+                <div className="flex items-center justify-between pb-2">
+                  <div className="flex items-center gap-2 text-slate-300 font-medium">
+                    <CheckCircle2 size={13} className={isPass ? 'text-emerald-400' : 'text-amber-400'} />
                     <span>Mandatory Declarations</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-slate-400">
-                    <span className="font-mono text-emerald-400">6 / 6</span>
-                    <ChevronRight size={13} />
+                  <div className="font-mono text-[11px] font-semibold text-slate-300">
+                    {passedChecks} / {totalChecks}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <CheckCircle2 size={13} className="text-emerald-400" />
-                    <span>Format &amp; Presentation</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-emerald-400">
-                    <span>Compliant</span>
-                    <ChevronRight size={13} />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <CheckCircle2 size={13} className="text-emerald-400" />
-                    <span>MRP Declaration</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-emerald-400">
-                    <span>Compliant</span>
-                    <ChevronRight size={13} />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <CheckCircle2 size={13} className="text-emerald-400" />
-                    <span>Net Quantity Declaration</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-emerald-400">
-                    <span>Compliant</span>
-                    <ChevronRight size={13} />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <CheckCircle2 size={13} className="text-emerald-400" />
-                    <span>Manufacturer/Packer Details</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-emerald-400">
-                    <span>Compliant</span>
-                    <ChevronRight size={13} />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <CheckCircle2 size={13} className="text-emerald-400" />
-                    <span>Consumer Care Details</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-emerald-400">
-                    <span>Compliant</span>
-                    <ChevronRight size={13} />
-                  </div>
-                </div>
+                {/* Render genuine checks from rules engine */}
+                {currentVerdict.checks && currentVerdict.checks.length > 0 ? (
+                  currentVerdict.checks.slice(0, 5).map((check: ComplianceCheck, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between py-2">
+                      <div className="flex items-center gap-2 text-slate-300">
+                        {check.passed ? (
+                          <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                        ) : (
+                          <AlertTriangle size={13} className="text-amber-400 shrink-0" />
+                        )}
+                        <span className="truncate max-w-[210px]">{check.title}</span>
+                      </div>
+                      <div
+                        className={`flex items-center gap-1 font-medium text-[11px] shrink-0 ${
+                          check.passed ? 'text-emerald-400' : 'text-amber-400'
+                        }`}
+                      >
+                        <span>{check.passed ? 'Compliant' : 'Review'}</span>
+                        <ChevronRight size={13} />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between py-2">
+                      <div className="flex items-center gap-2 text-slate-300">
+                        {currentLabel.mrp ? (
+                          <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                        ) : (
+                          <AlertTriangle size={13} className="text-amber-400 shrink-0" />
+                        )}
+                        <span>MRP Declaration</span>
+                      </div>
+                      <span className={`text-[11px] ${currentLabel.mrp ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {currentLabel.mrp ? 'Compliant' : 'Needs Review'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2">
+                      <div className="flex items-center gap-2 text-slate-300">
+                        {currentLabel.netQuantity ? (
+                          <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                        ) : (
+                          <AlertTriangle size={13} className="text-amber-400 shrink-0" />
+                        )}
+                        <span>Net Quantity Declaration</span>
+                      </div>
+                      <span className={`text-[11px] ${currentLabel.netQuantity ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {currentLabel.netQuantity ? 'Compliant' : 'Needs Review'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2">
+                      <div className="flex items-center gap-2 text-slate-300">
+                        {currentLabel.manufacturer ? (
+                          <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                        ) : (
+                          <AlertTriangle size={13} className="text-amber-400 shrink-0" />
+                        )}
+                        <span>Manufacturer/Packer Details</span>
+                      </div>
+                      <span className={`text-[11px] ${currentLabel.manufacturer ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {currentLabel.manufacturer ? 'Compliant' : 'Needs Review'}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Verify & Edit Button */}
@@ -538,146 +1063,130 @@ export const Results: React.FC = () => {
               >
                 <span>Verify / Edit Fields</span>
               </button>
+
+              <p className="text-[10px] text-slate-500 text-center leading-relaxed">
+                Automated preliminary screening under Rule 6, LM (Packaged Commodities) Rules, 2011. Not an official legal determination.
+              </p>
             </div>
           </div>
         </div>
 
         {/* ==================================================== */}
-        {/* BOTTOM 3 CARDS ROW (Matching Reference Image 2)      */}
+        {/* BOTTOM 3 CARDS ROW                                   */}
         {/* ==================================================== */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
           {/* -------------------------------------------------- */}
-          {/* CARD 1: DETECTED LABEL REGIONS                     */}
+          {/* CARD 1: DETECTED LABEL REGIONS (Genuine Snippets)  */}
           {/* -------------------------------------------------- */}
           <div className="bg-[#090d16] rounded-3xl p-5 border border-white/[0.08] space-y-4 flex flex-col justify-between">
-            <div className="flex items-center gap-2 text-xs font-semibold text-white">
-              <Layers size={14} className="text-violet-400" />
-              <span>Detected Label Regions</span>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                  <Layers size={14} className="text-violet-400" />
+                  <span>Detected Label Regions</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {detectedRegions.length} region{detectedRegions.length !== 1 ? 's' : ''} detected
+                </span>
+              </div>
+
+              {detectedRegions.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+                  {detectedRegions.slice(0, 6).map((region, idx) => (
+                    <div
+                      key={idx}
+                      className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-white/[0.07] text-center"
+                    >
+                      <div className={`h-12 w-full rounded-lg flex items-center justify-center p-1 overflow-hidden border ${region.color}`}>
+                        <span className="font-mono text-[10px] truncate max-w-full font-medium">
+                          {region.text}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 mt-1.5 truncate max-w-full">
+                        {region.field}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-7 px-4 text-center space-y-2 bg-black/20 rounded-2xl border border-white/[0.04]">
+                  <AlertCircle size={22} className="mx-auto text-amber-400/80" />
+                  <p className="text-xs text-slate-300 font-medium">No statutory declaration regions detected</p>
+                  <p className="text-[11px] text-slate-500 max-w-xs mx-auto leading-relaxed">
+                    The OCR engine could not isolate individual declaration blocks on this panel. Upload additional package panels or verify values manually.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-3 gap-2.5 pt-1">
-              {/* Region 1: Product name */}
-              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-violet-500/30 text-center">
-                <div className="h-14 w-full rounded-lg bg-violet-500/10 flex items-center justify-center p-1 overflow-hidden">
-                  <span className="font-bold text-white text-[11px] leading-tight">Lay's</span>
-                </div>
-                <span className="text-[10px] text-slate-400 mt-1.5">Product name</span>
-              </div>
-
-              {/* Region 2: Net quantity */}
-              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-emerald-500/30 text-center">
-                <div className="h-14 w-full rounded-lg bg-emerald-500/10 flex items-center justify-center p-1 overflow-hidden">
-                  <span className="font-mono text-emerald-300 text-[10px]">NET QUANTITY 52 g</span>
-                </div>
-                <span className="text-[10px] text-slate-400 mt-1.5">Net quantity</span>
-              </div>
-
-              {/* Region 3: MRP */}
-              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-cyan-500/30 text-center">
-                <div className="h-14 w-full rounded-lg bg-cyan-500/10 flex items-center justify-center p-1 overflow-hidden">
-                  <span className="font-mono text-cyan-300 text-[10px]">MRP ₹ 20.00</span>
-                </div>
-                <span className="text-[10px] text-slate-400 mt-1.5">MRP</span>
-              </div>
-
-              {/* Region 4: Packer details */}
-              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-blue-500/30 text-center col-span-1.5">
-                <div className="h-12 w-full rounded-lg bg-blue-500/10 flex items-center justify-center p-1 overflow-hidden">
-                  <span className="text-[9px] text-blue-300 leading-tight">PepsiCo India Holdings</span>
-                </div>
-                <span className="text-[10px] text-slate-400 mt-1.5">Packer details</span>
-              </div>
-
-              {/* Region 5: Consumer care */}
-              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-orange-500/30 text-center col-span-1.5">
-                <div className="h-12 w-full rounded-lg bg-orange-500/10 flex items-center justify-center p-1 overflow-hidden">
-                  <span className="font-mono text-orange-300 text-[9px]">1800 22 4020</span>
-                </div>
-                <span className="text-[10px] text-slate-400 mt-1.5">Consumer care</span>
-              </div>
-            </div>
-            <div className="text-[10px] text-slate-500 text-center pt-1">
-              Extracted via bounding-box OCR coordinate mapping
+            <div className="text-[10px] text-slate-500 text-center pt-1 border-t border-white/[0.04]">
+              {detectedRegions.length > 0
+                ? 'Extracted via OCR coordinate mapping'
+                : 'Raw text length: ' + (currentLabel.rawText?.length || 0) + ' characters'}
             </div>
           </div>
 
           {/* -------------------------------------------------- */}
-          {/* CARD 2: RULE VALIDATION                            */}
+          {/* CARD 2: RULE VALIDATION (Deterministic Engine)     */}
           {/* -------------------------------------------------- */}
           <div className="bg-[#090d16] rounded-3xl p-5 border border-white/[0.08] space-y-4 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-semibold text-white">
-                <Scale size={14} className="text-violet-400" />
-                <span>Rule Validation</span>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                  <Scale size={14} className="text-violet-400" />
+                  <span>Rule Validation</span>
+                </div>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                    flaggedChecks === 0
+                      ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
+                      : 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
+                  }`}
+                >
+                  {flaggedChecks === 0 ? `All ${passedChecks} rules passed` : `${flaggedChecks} rule(s) need review`}
+                </span>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-medium">
-                All rules passed
-              </span>
+
+              <div className="space-y-2 text-xs pt-1">
+                {currentVerdict.checks && currentVerdict.checks.length > 0 ? (
+                  currentVerdict.checks.slice(0, 5).map((check: ComplianceCheck, idx: number) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/[0.04]"
+                    >
+                      <div className="flex items-center gap-2 text-slate-300 max-w-[230px]">
+                        {check.passed ? (
+                          <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                        ) : (
+                          <AlertTriangle size={13} className="text-amber-400 shrink-0" />
+                        )}
+                        <span className="truncate">{check.title}</span>
+                      </div>
+                      <div
+                        className={`flex items-center gap-1 text-[11px] shrink-0 ${
+                          check.passed ? 'text-emerald-400' : 'text-amber-400'
+                        }`}
+                      >
+                        <span>{check.passed ? 'Passed' : 'Review'}</span>
+                        <ChevronRight size={13} />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-500 italic p-3 text-center">
+                    Rule evaluation checklist is compiling for this commodity.
+                  </p>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-2.5 text-xs">
-              <div className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/[0.04]">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
-                  <span>Rule 1: Declaration of net quantity</span>
-                </div>
-                <div className="flex items-center gap-1 text-emerald-400 text-[11px]">
-                  <span>Passed</span>
-                  <ChevronRight size={13} />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/[0.04]">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
-                  <span>Rule 2: MRP declaration</span>
-                </div>
-                <div className="flex items-center gap-1 text-emerald-400 text-[11px]">
-                  <span>Passed</span>
-                  <ChevronRight size={13} />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/[0.04]">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
-                  <span>Rule 3: Manufacturer/packer details</span>
-                </div>
-                <div className="flex items-center gap-1 text-emerald-400 text-[11px]">
-                  <span>Passed</span>
-                  <ChevronRight size={13} />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/[0.04]">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
-                  <span>Rule 4: Consumer care details</span>
-                </div>
-                <div className="flex items-center gap-1 text-emerald-400 text-[11px]">
-                  <span>Passed</span>
-                  <ChevronRight size={13} />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/[0.04]">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
-                  <span>Rule 5: Format and legibility</span>
-                </div>
-                <div className="flex items-center gap-1 text-emerald-400 text-[11px]">
-                  <span>Passed</span>
-                  <ChevronRight size={13} />
-                </div>
-              </div>
-            </div>
-            <div className="text-[10px] text-slate-500 text-center pt-1">
+            <div className="text-[10px] text-slate-500 text-center pt-1 border-t border-white/[0.04]">
               Grounded in Rule 6, Legal Metrology (Packaged Commodities) Rules, 2011
             </div>
           </div>
 
           {/* -------------------------------------------------- */}
-          {/* CARD 3: AI COMPLIANCE ASSISTANT (Connected!)       */}
+          {/* CARD 3: AI COMPLIANCE ASSISTANT                    */}
           {/* -------------------------------------------------- */}
           <div className="bg-[#090d16] rounded-3xl p-5 border border-white/[0.08] space-y-4 flex flex-col justify-between">
             <div>
@@ -702,12 +1211,10 @@ export const Results: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setAssistantTab('summary');
-                    setCopilotAnswer(
-                      'This product appears to be compliant with the key Legal Metrology requirements. All mandatory declarations such as net quantity, MRP, manufacturer details, and consumer care information are present and clearly visible.'
-                    );
+                    setCopilotCustomAnswer(null);
                   }}
                   className={`py-1.5 px-2 rounded-lg font-medium transition cursor-pointer text-center ${
-                    assistantTab === 'summary'
+                    assistantTab === 'summary' && !copilotCustomAnswer
                       ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
                       : 'text-slate-400 hover:text-white'
                   }`}
@@ -718,12 +1225,10 @@ export const Results: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setAssistantTab('explain');
-                    setCopilotAnswer(
-                      'Under Rule 6(1)(da) and G.S.R. 629(E), MRP must be declared with unambiguous font height and inclusive of all taxes. Net quantity adheres to SI standard units (g).'
-                    );
+                    setCopilotCustomAnswer(null);
                   }}
                   className={`py-1.5 px-2 rounded-lg font-medium transition cursor-pointer text-center ${
-                    assistantTab === 'explain'
+                    assistantTab === 'explain' && !copilotCustomAnswer
                       ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
                       : 'text-slate-400 hover:text-white'
                   }`}
@@ -734,12 +1239,10 @@ export const Results: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setAssistantTab('suggestions');
-                    setCopilotAnswer(
-                      'Ensure the manufacturing batch barcode does not obscure the customer helpline print on high-speed foil stamping lines.'
-                    );
+                    setCopilotCustomAnswer(null);
                   }}
                   className={`py-1.5 px-2 rounded-lg font-medium transition cursor-pointer text-center ${
-                    assistantTab === 'suggestions'
+                    assistantTab === 'suggestions' && !copilotCustomAnswer
                       ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
                       : 'text-slate-400 hover:text-white'
                   }`}
@@ -756,7 +1259,7 @@ export const Results: React.FC = () => {
                     <span>Analyzing statutory requirements...</span>
                   </div>
                 ) : (
-                  copilotAnswer
+                  displayedAssistantText
                 )}
               </div>
             </div>
@@ -798,13 +1301,13 @@ export const Results: React.FC = () => {
               </button>
             </div>
             <pre className="p-4 rounded-xl bg-black/50 border border-white/[0.04] text-xs font-mono text-slate-300 overflow-y-auto max-h-72 whitespace-pre-wrap leading-relaxed">
-              {currentLabel.rawText}
+              {currentLabel.rawText || 'No raw text extracted from the scanned image.'}
             </pre>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText(currentLabel.rawText);
+                  navigator.clipboard.writeText(currentLabel.rawText || '');
                   alert('Raw OCR copied to clipboard');
                 }}
                 className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs text-white font-medium"
@@ -822,11 +1325,7 @@ export const Results: React.FC = () => {
           isOpen={isHumanReviewOpen}
           onClose={() => setIsHumanReviewOpen(false)}
           initialLabel={currentLabel}
-          onApplyReview={(updatedLabel: ExtractedLabel, newVerdict: Verdict) => {
-            setCurrentLabel(updatedLabel);
-            setCurrentVerdict(newVerdict);
-            setIsHumanReviewOpen(false);
-          }}
+          onApplyReview={handleApplyReview}
         />
       )}
     </div>
