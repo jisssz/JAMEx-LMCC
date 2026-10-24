@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
-  RotateCcw,
   CheckCircle2,
   AlertTriangle,
   AlertCircle,
@@ -18,7 +17,6 @@ import {
   Phone,
   Layers,
   X,
-  Camera,
   Plus,
   Download,
   FileText,
@@ -43,6 +41,7 @@ import { HumanReviewModal } from '../components/review/HumanReviewModal';
 import { InspectionSummaryCard } from '../components/ai/InspectionSummaryCard';
 import { requestVisionExtraction, VisionExtractionResponse } from '../services/api';
 import { shouldOfferVisionFallback } from '../services/vision/visionFallbackService';
+import ZenoxNav from '../components/ui/ZenoxNav';
 
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -238,37 +237,11 @@ export const Results: React.FC = () => {
     <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-12 selection:bg-emerald-500 selection:text-black font-sans relative overflow-hidden">
       <BackgroundBeams />
 
-      {/* Floating Top Header */}
-      <header className="sticky top-4 sm:top-6 z-40 max-w-4xl w-full mx-auto px-4">
-        <div className="px-5 py-3 rounded-full bg-[#080c16]/85 border border-white/[0.08] backdrop-blur-2xl shadow-xl flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 text-slate-400 hover:text-white text-xs font-sans transition cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Home</span>
-          </button>
-
-          <div className="text-center">
-            <h1 className="text-xs font-semibold text-white tracking-wide">
-              Compliance Verification Sheet
-            </h1>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => navigate('/scan')}
-            className="flex items-center gap-1.5 text-slate-950 bg-white hover:bg-slate-100 text-xs font-semibold py-1.5 px-3.5 rounded-full transition cursor-pointer font-sans"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Scan another</span>
-          </button>
-        </div>
-      </header>
+      <ZenoxNav />
 
       {/* Main Document Body */}
       <main className="relative z-10 max-w-4xl w-full mx-auto px-5 sm:px-8 py-8 space-y-8">
+        <div><p className="text-[11px] uppercase tracking-[.2em] text-amber-300">Inspection results</p><h1 className="mt-2 text-3xl font-semibold text-white">Compliance screening report</h1><p className="mt-2 text-sm text-slate-400">Review detected declarations, evidence, and deterministic rule checks.</p></div>
         {/* Human Verified Forensic Banner (if updated) */}
         {currentLabel.isHumanVerified && (
           <div className="p-4 bg-teal-950/40 border border-teal-500/30 rounded-2xl flex items-center justify-between text-xs text-teal-300">

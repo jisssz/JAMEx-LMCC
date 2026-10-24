@@ -21,6 +21,7 @@ import { Verdict } from '../models/Verdict';
 import { submitReport, ReportCreatePayload } from '../services/api';
 import { saveLocalReport } from '../services/storage/localReports';
 import SectionLabel from '../components/ui/SectionLabel';
+import ZenoxNav from '../components/ui/ZenoxNav';
 
 export const Report: React.FC = () => {
   const location = useLocation();
@@ -248,6 +249,7 @@ export const Report: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-16">
+      <ZenoxNav />
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-[#06080e]/90 backdrop-blur-md border-b border-white/[0.06] px-4 py-3.5">
         <div className="max-w-2xl mx-auto flex items-center justify-between">

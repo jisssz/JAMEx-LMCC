@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  Scale,
   ArrowLeft,
   Camera,
   UploadCloud,
@@ -29,6 +28,7 @@ import {
   ImageQualityEvaluation,
 } from "../services/image/imageQualityService";
 import { ImageQualityHud } from "../components/ui/ImageQualityHud";
+import ZenoxNav from "../components/ui/ZenoxNav";
 
 export const Scan: React.FC = () => {
   const navigate = useNavigate();
@@ -118,78 +118,7 @@ export const Scan: React.FC = () => {
         />
       </div>
 
-      {/* 1. GLOBAL LMCC TOP NAVIGATION (Matching Home) */}
-      <header className="sticky top-3 sm:top-5 z-50 w-full px-4 sm:px-6 max-w-5xl mx-auto">
-        <nav className="relative flex items-center justify-between px-5 sm:px-7 py-2.5 sm:py-3 rounded-full bg-[#080c16]/85 border border-white/[0.08] backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
-          {/* Brand */}
-          <div
-            onClick={() => navigate("/")}
-            className="flex items-center gap-2.5 cursor-pointer group"
-          >
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[#2ee6a6] group-hover:border-[#2ee6a6]/40 transition">
-              <Scale className="w-3.5 h-3.5" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm font-bold tracking-tight text-white font-sans">LMCC</span>
-              <span className="hidden sm:inline text-xs font-display-italic text-slate-400">
-                Legal Metrology
-              </span>
-            </div>
-          </div>
-
-          {/* Desktop Navigation Links */}
-          <div className="hidden md:flex items-center gap-6 text-xs font-sans font-medium text-slate-300">
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="hover:text-white transition cursor-pointer"
-            >
-              Home
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/#how-it-works")}
-              className="hover:text-white transition cursor-pointer"
-            >
-              How it works
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/rules")}
-              className="hover:text-white transition cursor-pointer"
-            >
-              Rules
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/history")}
-              className="hover:text-white transition cursor-pointer"
-            >
-              History
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/authority-dashboard")}
-              className="hover:text-white transition cursor-pointer"
-            >
-              Analytics
-            </button>
-          </div>
-
-          {/* Right Action */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <LanguageSelector />
-            <button
-              type="button"
-              onClick={() => navigate("/scan")}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-white text-slate-950 hover:bg-slate-100 transition shadow-sm font-sans cursor-pointer"
-            >
-              <span>Scan product</span>
-              <span className="text-slate-400 font-normal">→</span>
-            </button>
-          </div>
-        </nav>
-      </header>
+      <ZenoxNav />
 
       {/* 2. SUB-BAR (Context & Controls Bar matching reference) */}
       <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-3 sm:mt-5">
@@ -212,6 +141,7 @@ export const Scan: React.FC = () => {
 
           {/* Right: Mode Switch [ Camera | Upload ] matching reference */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
+            <LanguageSelector />
             <div className="flex bg-white/[0.04] rounded-full p-0.5 border border-white/[0.08] text-xs font-sans">
               <button
                 type="button"

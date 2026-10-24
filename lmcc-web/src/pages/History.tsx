@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft,
   RefreshCw,
   AlertTriangle,
   FileText,
@@ -16,6 +15,7 @@ import { getReports } from '../services/api';
 import { getLocalReports, LocalReport, getReportLifecycleState, ReportLifecycleState } from '../services/storage/localReports';
 import { syncPendingReports, registerSyncListener, isReportSyncing } from '../services/sync/reportSync';
 import { BackgroundBeams } from '../components/ui/background-beams';
+import ZenoxNav from '../components/ui/ZenoxNav';
 
 interface HistoryItem {
   id: string; // server ID or localId
@@ -237,43 +237,11 @@ export const History: React.FC = () => {
     <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-12 selection:bg-emerald-500 selection:text-black relative overflow-hidden">
       <BackgroundBeams />
 
-      {/* Top Floating Header */}
-      <header className="sticky top-3 sm:top-5 z-40 max-w-4xl w-full mx-auto px-4">
-        <div className="px-4 py-3 rounded-full bg-slate-950/80 border border-white/10 backdrop-blur-2xl shadow-xl flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 text-slate-300 hover:text-white text-xs font-mono font-semibold py-1.5 px-3 rounded-full bg-white/5 border border-white/10 transition cursor-pointer"
-            aria-label="Back to Home"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>HOME</span>
-          </button>
-
-          <div className="text-center">
-            <h1 className="text-xs sm:text-sm font-black text-white tracking-wide uppercase">
-              Scan History
-            </h1>
-            <span className="text-[10px] text-slate-400 font-mono hidden sm:block">
-              Archived Compliance Screenings
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => navigate('/scan')}
-            className="flex items-center gap-1.5 text-slate-950 bg-white hover:bg-slate-100 text-xs font-bold py-1.5 px-3 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.3)] transition cursor-pointer"
-            aria-label="Scan New Product"
-          >
-            <PlusCircle className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">New Scan</span>
-            <span className="sm:hidden">Scan</span>
-          </button>
-        </div>
-      </header>
+      <ZenoxNav />
 
       {/* Main Content Area */}
       <main className="relative z-10 max-w-4xl w-full mx-auto px-4 py-8 flex-1 space-y-6">
+        <div><p className="text-[11px] uppercase tracking-[.2em] text-amber-300">Inspection records</p><h1 className="mt-2 text-3xl font-semibold text-white">Inspection history & reports</h1><p className="mt-2 text-sm text-slate-400">Search saved screenings, review sync status, and open inspection records.</p></div>
         {/* Continuous Report Lifecycle Monitoring Banner */}
         <div className="rounded-2xl border p-4 backdrop-blur-xl transition font-mono text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-900/80 border-white/10">
           <div className="flex items-center gap-2.5">

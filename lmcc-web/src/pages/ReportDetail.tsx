@@ -31,6 +31,7 @@ import { ComplianceCopilotSheet } from '../components/copilot/ComplianceCopilotS
 import { InspectionSummaryCard } from '../components/ai/InspectionSummaryCard';
 import { Verdict } from '../models/Verdict';
 import { ExtractedLabel } from '../models/ExtractedLabel';
+import ZenoxNav from '../components/ui/ZenoxNav';
 
 export const ReportDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -236,6 +237,7 @@ export const ReportDetail: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between pb-16">
+      <ZenoxNav />
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-[#06080e]/90 backdrop-blur-md border-b border-white/[0.06] px-4 py-3.5">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
