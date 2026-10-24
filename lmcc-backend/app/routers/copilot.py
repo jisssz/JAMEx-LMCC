@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 from fastapi import APIRouter, Query, HTTPException, status
 from app.schemas.copilot import (
@@ -10,6 +11,7 @@ from app.services.copilot.copilot_service import process_copilot_query
 from app.services.copilot.rules_corpus import search_rules, get_rule_by_id
 
 router = APIRouter(prefix="/api", tags=["copilot"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/copilot/chat", response_model=CopilotResponse)
@@ -21,10 +23,11 @@ async def copilot_chat(payload: CopilotQueryRequest):
     """
     try:
         return await process_copilot_query(payload)
-    except Exception as e:
+    except Exception:
+        logger.exception("Copilot provider failed")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Copilot query processing failed: {str(e)}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The compliance assistant is temporarily unavailable. Please retry.",
         )
 
 

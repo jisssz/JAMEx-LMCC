@@ -1,5 +1,5 @@
 import os
-import httpx
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.db import get_db
@@ -16,6 +16,7 @@ from app.services.inspection.service import (
 )
 
 router = APIRouter(prefix="/api/inspection", tags=["inspection"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/summary", response_model=InspectionSummaryResponse)
@@ -27,10 +28,11 @@ async def create_inspection_summary(payload: InspectionSummaryRequest):
     """
     try:
         return await generate_inspection_summary(payload)
-    except Exception as e:
+    except Exception:
+        logger.exception("Inspection summary provider failed")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate inspection summary: {str(e)}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Inspection summary is temporarily unavailable. Please retry.",
         )
 
 
@@ -83,17 +85,18 @@ async def inspection_assistant(payload: InspectionAssistantRequest):
     """
     try:
         return await process_inspection_assistant(payload)
-    except Exception as e:
+    except Exception:
+        logger.exception("Inspection assistant provider failed")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Inspection assistant request failed: {str(e)}",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The inspection assistant is temporarily unavailable. Please retry.",
         )
 
 
 @router.get("/diagnostic")
 async def inspection_diagnostic():
     """
-    Sanitized diagnostic endpoint to test Gemini API connectivity without exposing secret values.
+    Reports provider configuration only. It does not make billable network calls or reveal secret fragments.
     """
     gemini_key = (os.getenv("GEMINI_API_KEY") or "").strip()
     configured_model = (os.getenv("GEMINI_MODEL") or "gemini-flash-lite-latest").strip()
@@ -101,86 +104,13 @@ async def inspection_diagnostic():
         return {
             "gemini_key_configured": False,
             "configured_model": configured_model,
-            "status": "No GEMINI_API_KEY present in environment",
+            "status": "Provider not configured",
+            "connectivity_checked": False,
         }
 
-    headers = {
-        "x-goog-api-key": gemini_key,
-        "Content-Type": "application/json",
+    return {
+        "gemini_key_configured": True,
+        "configured_model": configured_model,
+        "status": "Provider configured; connectivity not checked",
+        "connectivity_checked": False,
     }
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        # Check available models
-        resp = await client.get(
-            "https://generativelanguage.googleapis.com/v1beta/models",
-            headers=headers,
-        )
-        models_data = []
-        err_msg = None
-        if resp.status_code == 200:
-            try:
-                data = resp.json()
-                models_data = [
-                    m.get("name")
-                    for m in data.get("models", [])
-                    if "generateContent" in m.get("supportedGenerationMethods", [])
-                ]
-            except Exception as e:
-                err_msg = f"Failed to parse models json: {str(e)}"
-        else:
-            err_msg = resp.text[:500]
-
-        # Test active flash models for real-time availability
-        test_models = [
-            "gemini-flash-lite-latest",
-            "gemini-2.5-flash-lite",
-            "gemini-3.5-flash-lite",
-            "gemini-3.7-flash",
-            "gemini-3.8-flash",
-            "gemini-flash-latest",
-        ]
-        model_availability = {}
-        for tm in test_models:
-            t_url = f"https://generativelanguage.googleapis.com/v1beta/models/{tm}:generateContent"
-            try:
-                t_resp = await client.post(
-                    t_url,
-                    headers=headers,
-                    json={"contents": [{"parts": [{"text": "ping"}]}]},
-                    timeout=3.5,
-                )
-                model_availability[tm] = {
-                    "status": t_resp.status_code,
-                    "result": "OK" if t_resp.status_code == 200 else t_resp.text[:120],
-                }
-            except Exception as e:
-                model_availability[tm] = {"status": "timeout", "result": str(e)}
-
-        # Test structured inspection summary generation via provider
-        summary_provider = None
-        summary_is_ai = False
-        summary_error = None
-        try:
-            diag_req = InspectionSummaryRequest(
-                product_name="Diagnostic Organic Flour 1kg",
-                verdict="REVIEW",
-                extracted_declarations={"net_quantity": "1 kg"},
-                flagged_rules=["LM-PCR-2011-R6-1-C"],
-                potential_violations=[{"field": "net_quantity", "issue": "Diagnostic check"}],
-            )
-            diag_res = await generate_inspection_summary(diag_req)
-            summary_provider = diag_res.provider_used
-            summary_is_ai = diag_res.is_ai_generated
-        except Exception as e:
-            summary_error = str(e)
-
-        return {
-            "gemini_key_configured": True,
-            "key_prefix": gemini_key[:4] + "..." if len(gemini_key) > 4 else "...",
-            "configured_model": configured_model,
-            "models_endpoint_status": resp.status_code,
-            "available_models_count": len(models_data),
-            "model_availability": model_availability,
-            "summary_provider_used": summary_provider,
-            "summary_is_ai_generated": summary_is_ai,
-            "summary_error": summary_error,
-        }

@@ -43,6 +43,17 @@ import { HumanReviewModal } from '../components/review/HumanReviewModal';
 import { InspectionSummaryCard } from '../components/ai/InspectionSummaryCard';
 import { EvidenceComparisonCard } from '../components/ui/EvidenceComparisonCard';
 import { compareOriginalAndEnhancedOcr } from '../services/ocr/dualOcrComparator';
+import { requestVisionExtraction, VisionExtractionResponse } from '../services/api';
+import { shouldOfferVisionFallback } from '../services/vision/visionFallbackService';
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read the selected image.'));
+    reader.onerror = () => reject(new Error('Could not read the selected image.'));
+    reader.readAsDataURL(blob);
+  });
+}
 
 export const Results: React.FC = () => {
   const location = useLocation();
@@ -102,6 +113,15 @@ export const Results: React.FC = () => {
   const [currentVerdict, setCurrentVerdict] = useState<Verdict>(verdict || ({} as Verdict));
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isHumanReviewOpen, setIsHumanReviewOpen] = useState(false);
+  const [visionResult, setVisionResult] = useState<VisionExtractionResponse | null>(null);
+  const [visionLoading, setVisionLoading] = useState(false);
+  const [visionError, setVisionError] = useState<string | null>(null);
+
+  const visionRecommendation = shouldOfferVisionFallback({
+    ocrQuality: state?.ocrQuality || 'POOR',
+    confidence: state?.ocrConfidence || 0,
+    extractedLabel: currentLabel,
+  });
 
   const dualComparison = React.useMemo(() => {
     const rawOcr = currentLabel.rawText || extractedLabel?.rawText || (multiPanelResult?.unifiedLabel?.rawText) || '';
@@ -115,6 +135,33 @@ export const Results: React.FC = () => {
   useEffect(() => {
     if (verdict) setCurrentVerdict(verdict);
   }, [verdict]);
+
+  useEffect(() => {
+    if (currentVerdict?.overallStatus === 'PASS') {
+      try {
+        confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 }, colors: ['#10b981', '#34d399', '#8b5cf6', '#38bdf8'] });
+      } catch {
+        // Safe fallback if canvas is not available.
+      }
+    }
+  }, [currentVerdict?.overallStatus]);
+
+  const handleVisionFallback = async () => {
+    if (!imageBlob || visionLoading) return;
+    setVisionLoading(true);
+    setVisionError(null);
+    setVisionResult(null);
+    try {
+      if (imageBlob.size > 6 * 1024 * 1024) throw new Error('This image exceeds the 6 MB limit for the optional server-side AI review. Use the on-device OCR and human review workflow instead.');
+      const imageDataUrl = await blobToDataUrl(imageBlob);
+      const result = await requestVisionExtraction(imageDataUrl, currentLabel.rawText, visionRecommendation.targetFields);
+      setVisionResult(result);
+    } catch (error) {
+      setVisionError(error instanceof Error ? error.message : 'AI visual extraction is unavailable. You can continue with human review.');
+    } finally {
+      setVisionLoading(false);
+    }
+  };
 
   // Empty / Failure State Handling
   if (!extractedLabel || !verdict) {
@@ -140,21 +187,6 @@ export const Results: React.FC = () => {
       </div>
     );
   }
-
-  useEffect(() => {
-    if (currentVerdict?.overallStatus === 'PASS') {
-      try {
-        confetti({
-          particleCount: 60,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ['#10b981', '#34d399', '#8b5cf6', '#38bdf8'],
-        });
-      } catch {
-        // Safe fallback if canvas not available
-      }
-    }
-  }, [currentVerdict?.overallStatus]);
 
   const handleCopyRaw = () => {
     navigator.clipboard.writeText(currentLabel.rawText || extractedLabel?.rawText || '');
@@ -303,6 +335,44 @@ export const Results: React.FC = () => {
           multiPanelResult={multiPanelResult}
           isMultiPanel={isMultiPanel}
         />
+
+        {visionRecommendation.recommended && imageBlob && !currentLabel.isHumanVerified && (
+          <section className="space-y-4 rounded-3xl border border-violet-400/20 bg-violet-500/[.04] p-5 sm:p-6" aria-labelledby="vision-review-title">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 id="vision-review-title" className="flex items-center gap-2 text-sm font-semibold text-white"><Sparkles className="h-4 w-4 text-violet-300"/>Optional AI visual cross-check</h3>
+                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-400">{visionRecommendation.reason} If you continue, the original {isMultiPanel ? 'first-panel ' : ''}image and OCR text are sent to the configured server-side Gemini provider. AI suggestions remain separate from the OCR record and cannot change the deterministic verdict.</p>
+                {visionRecommendation.targetFields.length > 0 && <p className="mt-2 text-[10px] text-violet-200/80">Fields to cross-check: {visionRecommendation.targetFields.join(', ')}</p>}
+              </div>
+              {!visionResult && <button type="button" onClick={handleVisionFallback} disabled={visionLoading} className="shrink-0 rounded-full border border-violet-300/30 bg-violet-500/15 px-4 py-2 text-xs font-medium text-violet-100 transition hover:bg-violet-500/25 disabled:opacity-50">{visionLoading ? 'Checking image…' : 'Run AI cross-check'}</button>}
+            </div>
+            {visionError && <div role="alert" className="rounded-xl border border-amber-400/20 bg-amber-500/[.06] p-3 text-xs text-amber-100">{visionError}</div>}
+            {visionResult && <div className="space-y-3 rounded-2xl border border-white/[.08] bg-black/20 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-medium text-violet-100">Unverified AI suggestions · {visionResult.provider_used}</div><span className="text-[10px] text-slate-500">{visionResult.provenance}</span></div>
+              {visionResult.provider_used.toLowerCase().includes('mock') && <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-[10px] font-semibold text-amber-200">MOCK PROVIDER OUTPUT — NOT A REAL AI EXTRACTION. Do not use these values as package evidence.</div>}
+              <div className="grid gap-2 sm:grid-cols-2">
+                {([
+                  ['Product', visionResult.product_name, currentLabel.productName],
+                  ['MRP', visionResult.mrp, currentLabel.mrp],
+                  ['Net quantity', visionResult.net_quantity, currentLabel.netQuantity],
+                  ['Manufacturer', visionResult.manufacturer, currentLabel.manufacturer],
+                  ['Date declaration', visionResult.date_declaration, currentLabel.packingDate || currentLabel.manufactureDate],
+                  ['Consumer care', visionResult.consumer_care, currentLabel.consumerCare],
+                ] as const).map(([field, candidate, existing]) => {
+                  const value = candidate.value?.trim();
+                  const disagrees = Boolean(value && existing && value.toLocaleLowerCase() !== existing.toLocaleLowerCase());
+                  return <div key={field} className="rounded-xl border border-white/[.06] bg-white/[.02] p-3">
+                    <div className="flex items-center justify-between gap-2"><span className="text-[10px] uppercase tracking-wide text-slate-500">{field}</span><span className={`text-[9px] ${disagrees ? 'text-amber-300' : 'text-slate-500'}`}>{disagrees ? 'DISAGREEMENT · REVIEW' : candidate.status.toUpperCase()}</span></div>
+                    <p className="mt-1 break-words text-xs text-white">AI: {value || 'No readable suggestion'}</p>
+                    {existing && <p className="mt-1 break-words text-[10px] text-slate-400">On-device OCR: {existing}</p>}
+                    {candidate.evidence_snippet && <p className="mt-1 text-[10px] text-slate-500">Visual context: {candidate.evidence_snippet}</p>}
+                  </div>;
+                })}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[.06] pt-3"><p className="max-w-xl text-[10px] leading-relaxed text-slate-400">{visionResult.disclaimer} AI values are not applied to the report. Verify the original package and enter any confirmed correction through Human Review.</p><button type="button" onClick={() => setIsHumanReviewOpen(true)} className="rounded-full bg-white/10 px-4 py-2 text-xs text-white hover:bg-white/15">Open Human Review</button></div>
+            </div>}
+          </section>
+        )}
 
         {/* Feature 2: Evidence Preservation & Dual OCR Inspector */}
         <EvidenceComparisonCard
