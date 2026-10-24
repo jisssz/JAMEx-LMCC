@@ -35,6 +35,7 @@ interface InspectionRecord {
   status: 'Compliant' | 'Needs review' | 'Non-compliant';
   confidence: number;
   date: string;
+  isDemo?: boolean;
 }
 
 const mockInspections: InspectionRecord[] = [
@@ -53,6 +54,7 @@ const mockInspections: InspectionRecord[] = [
     status: 'Compliant',
     confidence: 94,
     date: '12 Oct 2025, 14:32',
+    isDemo: true,
   },
   {
     id: 'INSP-2025-001283',
@@ -69,6 +71,7 @@ const mockInspections: InspectionRecord[] = [
     status: 'Needs review',
     confidence: 78,
     date: '11 Oct 2025, 10:21',
+    isDemo: true,
   },
   {
     id: 'INSP-2025-001282',
@@ -85,6 +88,7 @@ const mockInspections: InspectionRecord[] = [
     status: 'Compliant',
     confidence: 96,
     date: '11 Oct 2025, 09:15',
+    isDemo: true,
   },
   {
     id: 'INSP-2025-001281',
@@ -101,6 +105,7 @@ const mockInspections: InspectionRecord[] = [
     status: 'Non-compliant',
     confidence: 62,
     date: '10 Oct 2025, 18:40',
+    isDemo: true,
   },
   {
     id: 'INSP-2025-001280',
@@ -117,6 +122,7 @@ const mockInspections: InspectionRecord[] = [
     status: 'Compliant',
     confidence: 91,
     date: '10 Oct 2025, 16:12',
+    isDemo: true,
   },
   {
     id: 'INSP-2025-001279',
@@ -133,6 +139,7 @@ const mockInspections: InspectionRecord[] = [
     status: 'Compliant',
     confidence: 89,
     date: '09 Oct 2025, 13:27',
+    isDemo: true,
   },
   {
     id: 'INSP-2025-001278',
@@ -149,6 +156,7 @@ const mockInspections: InspectionRecord[] = [
     status: 'Needs review',
     confidence: 76,
     date: '09 Oct 2025, 11:05',
+    isDemo: true,
   },
   {
     id: 'INSP-2025-001277',
@@ -165,6 +173,7 @@ const mockInspections: InspectionRecord[] = [
     status: 'Compliant',
     confidence: 93,
     date: '08 Oct 2025, 09:50',
+    isDemo: true,
   },
 ];
 
@@ -211,6 +220,7 @@ export const History: React.FC = () => {
               hour: '2-digit',
               minute: '2-digit',
             }),
+            isDemo: false,
           })),
           ...localList.map((l) => ({
             id: l.localId.slice(0, 16),
@@ -233,6 +243,7 @@ export const History: React.FC = () => {
               hour: '2-digit',
               minute: '2-digit',
             }),
+            isDemo: false,
           })),
         ];
 
@@ -503,7 +514,18 @@ export const History: React.FC = () => {
                                 />
                               </div>
                               <div>
-                                <span className="font-semibold text-white block text-xs">{record.name}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-white block text-xs">{record.name}</span>
+                                  {record.isDemo ? (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-medium tracking-wide bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                                      DEMO
+                                    </span>
+                                  ) : (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-medium tracking-wide bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                      LIVE
+                                    </span>
+                                  )}
+                                </div>
                                 <span className="text-[11px] text-slate-400 block mt-0.5">{record.weight}</span>
                               </div>
                             </div>
@@ -667,6 +689,19 @@ export const History: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Data Provenance Notice */}
+              {selectedRecord.isDemo ? (
+                <div className="px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-[11px] text-violet-300 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
+                  <span>Reference Demo Sample · Evaluated deterministically under SIH 2026.</span>
+                </div>
+              ) : (
+                <div className="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                  <span>Live Inspection Record · Saved from camera / device screening.</span>
+                </div>
+              )}
 
               {/* Product Image & Title */}
               <div className="flex items-center gap-4 bg-black/40 p-3.5 rounded-2xl border border-white/[0.04]">

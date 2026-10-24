@@ -130,15 +130,21 @@ export const IndiaComplianceMap: React.FC = () => {
         {/* HEADER SECTION (Matching Reference Image 5)         */}
         {/* ==================================================== */}
         <div className="space-y-1 pb-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-medium mb-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-            <span>NATIONAL INSIGHTS</span>
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+              <span>NATIONAL INSIGHTS</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-mono">
+              <Sparkles size={12} className="text-violet-400" />
+              <span>SIMULATED DEMO DATA</span>
+            </div>
           </div>
           <h1 className="text-3xl sm:text-4xl font-sans tracking-tight text-white font-normal">
             India Compliance Map
           </h1>
           <p className="text-xs sm:text-sm text-slate-400">
-            Explore state-wise insights on packaged commodity inspections.
+            Explore state-wise insights on packaged commodity inspections. All state and district metrics represent simulated surveillance telemetry for SIH 2026.
           </p>
         </div>
 
@@ -218,6 +224,15 @@ export const IndiaComplianceMap: React.FC = () => {
               8%
             </span>
           </div>
+        </div>
+
+        {/* Data Origin Disclaimer */}
+        <div className="bg-[#090d16] border border-violet-500/20 rounded-2xl px-4 py-3 flex items-center justify-between text-xs text-slate-300">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-violet-400 shrink-0" />
+            <span><strong>Surveillance Modeling Notice:</strong> All state telemetry, district coverage, and violation heatmaps are simulated demo data for Legal Metrology demonstration. Real product scans remain on your device until saved.</span>
+          </div>
+          <span className="text-[10px] font-mono uppercase text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded border border-violet-500/20 shrink-0 hidden sm:inline-block">SIH 2026 Model</span>
         </div>
 
         {/* ==================================================== */}
