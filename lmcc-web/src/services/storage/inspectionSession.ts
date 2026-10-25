@@ -16,8 +16,8 @@ export interface ActiveInspectionSession {
   panels: InspectionPanelSnapshot[];
   extractedLabel: ExtractedLabel;
   verdict: Verdict;
-  ocrConfidence: number;
-  ocrQuality: 'GOOD' | 'FAIR' | 'POOR';
+  ocrConfidence?: number;
+  ocrQuality?: 'GOOD' | 'FAIR' | 'POOR';
   isMultiPanel: boolean;
   isAiGenerated?: boolean;
   isDemo?: boolean;

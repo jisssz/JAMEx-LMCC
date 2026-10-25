@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   UploadCloud,
@@ -25,6 +25,40 @@ import {
   ImageQualityEvaluation,
 } from '../services/image/imageQualityService';
 
+export async function validatePackageUpload(file: File): Promise<void> {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    throw new Error('Unsupported file. Please choose a JPG, PNG or WEBP image.');
+  }
+  if (file.size > 10 * 1024 * 1024) throw new Error('Image exceeds the 10 MB limit.');
+  const url = URL.createObjectURL(file);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error('Invalid image. Please choose a readable JPG, PNG or WEBP image.'));
+      image.src = url;
+    });
+  } finally { URL.revokeObjectURL(url); }
+}
+
+export const PackageComparison: React.FC<{ originalUrl: string; enhancedUrl?: string }> = ({ originalUrl, enhancedUrl }) => {
+  const [position, setPosition] = useState(50);
+  return <section aria-label="Original and enhanced comparison" className="rounded-2xl border border-white/10 p-4 space-y-3">
+    <div className="flex justify-between text-xs"><span>Original</span><span>Enhanced</span></div>
+    {enhancedUrl ? <>
+      <div className="relative h-[400px] bg-black/50">
+        <img src={enhancedUrl} alt="Enhanced package" className="absolute w-full h-full object-contain" />
+        <div className="absolute inset-0 bg-black" style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}>
+          <img src={originalUrl} alt="Original package" className="w-full h-full object-contain" />
+        </div>
+      </div>
+      <label className="block text-xs">Comparison position
+        <input type="range" min="0" max="100" value={position} onChange={e => setPosition(Number(e.target.value))} className="w-full" />
+      </label>
+    </> : <p role="status">Enhanced preview is not available yet. Run image enhancement to compare.</p>}
+  </section>;
+};
+
 interface SamplePackage {
   id: string;
   name: string;
@@ -43,7 +77,9 @@ const samplePackages: SamplePackage[] = [
 export const Scan: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { capturedImage, imagePreviewUrl, setCapturedImage, addPanel, clearPanels } = useImage();
+  const { capturedImage, imagePreviewUrl, setCapturedImage } = useImage();
+  const [uploadError, setUploadError] = useState('');
+  const selection = useRef(0);
 
   const [activeTab, setActiveTab] = useState<'upload' | 'camera'>(
     searchParams.get('mode') === 'camera' ? 'camera' : 'upload'
@@ -65,23 +101,32 @@ export const Scan: React.FC = () => {
   const [compareToggle, setCompareToggle] = useState(false);
 
   const evaluate = async (image: Blob | File) => {
+    const request = selection.current;
     setIsAnalyzing(true);
+    setEvaluation(null);
     try {
       const result = await evaluateAndEnhancePackageImage(image);
-      setEvaluation(result);
+      if (request === selection.current) setEvaluation(result);
+      else if (result.enhancedPreviewUrl) URL.revokeObjectURL(result.enhancedPreviewUrl);
     } catch (err) {
       console.warn('Image quality analysis failed:', err);
     } finally {
-      setIsAnalyzing(false);
+      if (request === selection.current) setIsAnalyzing(false);
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (file) {
-      clearPanels();
+      const request = ++selection.current;
+      try { await validatePackageUpload(file); } catch (error) {
+        if (request === selection.current) setUploadError((error as Error).message);
+        return;
+      }
+      if (request !== selection.current) return;
+      setUploadError('');
       setCapturedImage(file);
-      addPanel(file, 'front');
       const url = URL.createObjectURL(file);
       setCurrentPreviewUrl(url);
       setSelectedSample('');
@@ -102,16 +147,19 @@ export const Scan: React.FC = () => {
   };
 
   const handleSelectSample = async (sample: SamplePackage) => {
+    const request = ++selection.current;
     setSelectedSample(sample.id);
     setCurrentPreviewUrl(sample.imageUrl);
 
     try {
       const response = await fetch(sample.imageUrl);
+      if (!response.ok) throw new Error('Sample unavailable');
       const blob = await response.blob();
       const file = new File([blob], `${sample.id}.png`, { type: blob.type || 'image/png' });
-      clearPanels();
+      await validatePackageUpload(file);
+      if (request !== selection.current) return;
+      setUploadError('');
       setCapturedImage(file);
-      addPanel(file, 'front');
 
       setImageMeta({
         name: `${sample.id}_scan_sample.jpg`,
@@ -127,9 +175,9 @@ export const Scan: React.FC = () => {
 
   const handleCameraCapture = (imageBlob: Blob) => {
     const file = new File([imageBlob], 'camera_capture_live.jpg', { type: imageBlob.type || 'image/jpeg' });
-    clearPanels();
+    ++selection.current;
+    setUploadError('');
     setCapturedImage(file);
-    addPanel(file, 'front');
     const url = URL.createObjectURL(file);
     setCurrentPreviewUrl(url);
     setActiveTab('upload');
@@ -158,6 +206,13 @@ export const Scan: React.FC = () => {
       handleSelectSample(defaultSample);
     }
   }, []);
+
+  useEffect(() => () => {
+    if (evaluation?.enhancedPreviewUrl) URL.revokeObjectURL(evaluation.enhancedPreviewUrl);
+  }, [evaluation]);
+  useEffect(() => () => {
+    if (currentPreviewUrl.startsWith('blob:') && currentPreviewUrl !== imagePreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
+  }, [currentPreviewUrl]);
 
   return (
     <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-orange-500/30">
@@ -295,6 +350,8 @@ export const Scan: React.FC = () => {
                     accept="image/png,image/jpeg,image/webp"
                     className="sr-only"
                     onChange={handleFileUpload}
+                    aria-invalid={Boolean(uploadError)}
+                    aria-describedby={uploadError ? 'scan-upload-error' : undefined}
                   />
                 </label>
               ) : (
@@ -307,6 +364,7 @@ export const Scan: React.FC = () => {
                 </div>
               )}
 
+              {uploadError && <p id="scan-upload-error" role="alert" className="text-sm text-red-400">{uploadError}</p>}
               {/* Try Sample Images Row */}
               <div className="space-y-2.5 pt-1">
                 <span className="text-[11px] text-slate-400 font-medium block">
@@ -379,6 +437,7 @@ export const Scan: React.FC = () => {
           {/* COLUMN 2: CENTER ORIGINAL IMAGE CONTAINER (5 cols) */}
           {/* -------------------------------------------------- */}
           <div className="lg:col-span-5 xl:col-span-6 space-y-4">
+            {compareToggle && <PackageComparison originalUrl={currentPreviewUrl} enhancedUrl={evaluation?.enhancedPreviewUrl} />}
             <div className="bg-[#090d16] rounded-3xl border border-white/[0.08] overflow-hidden flex flex-col">
               {/* Header: ORIGINAL IMAGE + Rotate/Crop Buttons */}
               <div className="flex items-center justify-between px-6 py-3.5 border-b border-white/[0.06] bg-black/20 text-xs">

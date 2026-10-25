@@ -60,11 +60,11 @@ export const Results: React.FC = () => {
   } | null;
 
   // ---------------------------------------------------------------------------
-  // 1. Resolve Active Inspection Session (Session -> State -> LocalStorage -> Demo)
+  // Resolve actual pipeline data or the persisted active inspection.
   // ---------------------------------------------------------------------------
-  const initialSession = useMemo<ActiveInspectionSession>(() => {
+  const initialSession = useMemo<ActiveInspectionSession | null>(() => {
     // 1.1 Direct session from location.state
-    if (state?.session) {
+    if (state?.session && !state.session.isDemo) {
       saveInspectionSession(state.session);
       return state.session;
     }
@@ -97,8 +97,8 @@ export const Results: React.FC = () => {
         panels: sessionPanels,
         extractedLabel: state.extractedLabel,
         verdict,
-        ocrConfidence: Math.round(state.ocrConfidence || 85),
-        ocrQuality: (state.ocrQuality as any) || 'FAIR',
+        ocrConfidence: state.ocrConfidence,
+        ocrQuality: state.ocrQuality as ActiveInspectionSession['ocrQuality'],
         isMultiPanel: Boolean(state.isMultiPanel || sessionPanels.length > 1),
         isDemo: false,
       };
@@ -109,41 +109,30 @@ export const Results: React.FC = () => {
 
     // 1.3 Active session restored from sessionStorage (handles browser reloads)
     const stored = getInspectionSession();
-    if (stored) {
+    if (stored && !stored.isDemo) {
       return stored;
     }
 
-    // 1.4 Standalone Demo Fallback (ONLY used if user opens /results directly without scanning)
-    const demoLabel: ExtractedLabel = {
-      rawText:
-        "Lay's Classic Potato Chips Net Quantity 52 g MRP Rs 20.00 incl. of all taxes Mfd by PepsiCo India Holdings Pvt. Ltd. Pune, Maharashtra Consumer Care: 1800 22 4020",
-      productName: "Lay's Classic",
-      netQuantity: '52 g',
-      mrp: '₹ 20.00 (incl. of all taxes)',
-      manufacturer: 'PepsiCo India Holdings Pvt. Ltd.',
-      address: 'Pune, Maharashtra',
-      consumerCare: '1800 22 4020',
-      packingDate: '12/2024',
-    };
-    const rulesEngine = new RulesEngine();
-    const demoVerdict = rulesEngine.evaluate(demoLabel);
-
-    return {
-      inspectionId: 'DEMO-INSP-2025-001',
-      inspectionDate: '12 Oct 2025, 14:32',
-      productName: "Lay's Classic",
-      imagePreviewUrl: '/samples/lays.png',
-      panels: [
-        { id: 'p1', type: 'front', label: 'Front Panel', previewUrl: '/samples/lays.png' },
-      ],
-      extractedLabel: demoLabel,
-      verdict: demoVerdict,
-      ocrConfidence: 94,
-      ocrQuality: 'GOOD',
-      isMultiPanel: false,
-      isDemo: true,
-    };
+    return null;
   }, [state, imagePreviewUrl, panels]);
+
+  if (!initialSession) return (
+    <div className="min-h-screen bg-[#06080e] text-slate-100">
+      <ZenoxNav />
+      <main className="max-w-2xl mx-auto px-6 py-20 text-center space-y-6">
+        <h1 className="text-3xl">No inspection results yet</h1>
+        <p className="text-slate-400">Scan a package to extract its declarations and run compliance checks.</p>
+        <button type="button" onClick={() => navigate('/scan')} className="rounded-full bg-orange-500 px-6 py-3 text-slate-950 font-semibold">Start Scan</button>
+      </main>
+    </div>
+  );
+  return <InspectionResults key={initialSession.inspectionId} initialSession={initialSession} />;
+};
+
+
+
+const InspectionResults: React.FC<{ initialSession: ActiveInspectionSession }> = ({ initialSession }) => {
+  const navigate = useNavigate();
 
   // ---------------------------------------------------------------------------
   // Component State
@@ -164,14 +153,7 @@ export const Results: React.FC = () => {
     setActiveThumb(0);
   }, [initialSession]);
 
-  // Ensure verdict always contains evaluated checks
-  useEffect(() => {
-    if (!currentVerdict?.checks || currentVerdict.checks.length === 0) {
-      const engine = new RulesEngine();
-      const updated = engine.evaluate(currentLabel);
-      setCurrentVerdict(updated);
-    }
-  }, [currentLabel, currentVerdict]);
+
 
   // Confetti on clean pass
   useEffect(() => {
@@ -207,29 +189,28 @@ export const Results: React.FC = () => {
   // ---------------------------------------------------------------------------
   // Calculate Statutory Score & Status
   // ---------------------------------------------------------------------------
-  const totalChecks = currentVerdict.totalChecks || 6;
-  const passedChecks = currentVerdict.passedChecks || 0;
-  const flaggedChecks = currentVerdict.flaggedChecks || Math.max(0, totalChecks - passedChecks);
+  const totalChecks = currentVerdict.totalChecks;
+  const passedChecks = currentVerdict.passedChecks;
+  const flaggedChecks = currentVerdict.flaggedChecks;
   const complianceScore = Math.min(
     100,
     Math.max(0, Math.round((passedChecks / Math.max(totalChecks, 1)) * 100))
   );
 
   const isPass = currentVerdict.overallStatus === 'PASS';
-  const isFail = complianceScore === 0 || currentVerdict.potentialViolations?.some((v) => v.severity === 'critical');
-  const isReview = !isPass && !isFail;
+  const isReview = currentVerdict.overallStatus === 'REVIEW';
+
 
   // ---------------------------------------------------------------------------
   // Detected Label Regions (derived from genuine OCR output)
   // ---------------------------------------------------------------------------
   const detectedRegions = useMemo(() => {
-    const list: { field: string; text: string; confidence: number; color: string }[] = [];
+    const list: { field: string; text: string; color: string }[] = [];
 
     if (currentLabel.productName) {
       list.push({
         field: 'Product Name',
         text: currentLabel.productNameEvidence || currentLabel.productName,
-        confidence: currentLabel.fieldEvidenceRecords?.productName?.confidence || session.ocrConfidence || 90,
         color: 'border-violet-500/30 bg-violet-500/10 text-violet-300',
       });
     }
@@ -237,7 +218,6 @@ export const Results: React.FC = () => {
       list.push({
         field: 'Net Quantity',
         text: currentLabel.netQuantityEvidence || currentLabel.netQuantity,
-        confidence: currentLabel.fieldEvidenceRecords?.netQuantity?.confidence || session.ocrConfidence || 95,
         color: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
       });
     }
@@ -245,7 +225,6 @@ export const Results: React.FC = () => {
       list.push({
         field: 'MRP',
         text: currentLabel.mrpEvidence || currentLabel.mrp,
-        confidence: currentLabel.fieldEvidenceRecords?.mrp?.confidence || session.ocrConfidence || 95,
         color: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300',
       });
     }
@@ -253,7 +232,6 @@ export const Results: React.FC = () => {
       list.push({
         field: 'Manufacturer / Packer',
         text: currentLabel.manufacturerEvidence || currentLabel.manufacturer,
-        confidence: currentLabel.fieldEvidenceRecords?.manufacturer?.confidence || session.ocrConfidence || 90,
         color: 'border-blue-500/30 bg-blue-500/10 text-blue-300',
       });
     }
@@ -261,7 +239,6 @@ export const Results: React.FC = () => {
       list.push({
         field: 'Mfg / Pkg Date',
         text: currentLabel.dateEvidence || currentLabel.packingDate || currentLabel.manufactureDate || '',
-        confidence: currentLabel.fieldEvidenceRecords?.date?.confidence || session.ocrConfidence || 85,
         color: 'border-purple-500/30 bg-purple-500/10 text-purple-300',
       });
     }
@@ -269,7 +246,6 @@ export const Results: React.FC = () => {
       list.push({
         field: 'Consumer Care',
         text: currentLabel.consumerCareEvidence || currentLabel.consumerCare,
-        confidence: currentLabel.fieldEvidenceRecords?.consumerCare?.confidence || session.ocrConfidence || 88,
         color: 'border-orange-500/30 bg-orange-500/10 text-orange-300',
       });
     }
@@ -277,7 +253,6 @@ export const Results: React.FC = () => {
       list.push({
         field: 'Address',
         text: currentLabel.addressEvidence || currentLabel.address,
-        confidence: currentLabel.fieldEvidenceRecords?.address?.confidence || session.ocrConfidence || 80,
         color: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
       });
     }
@@ -637,15 +612,15 @@ export const Results: React.FC = () => {
                 </div>
                 <span
                   className={`px-2.5 py-0.5 rounded-full font-mono text-[11px] font-semibold flex items-center gap-1.5 ${
-                    session.ocrConfidence >= 80
+                    (session.ocrConfidence ?? 85) >= 80
                       ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
-                      : session.ocrConfidence >= 50
+                      : (session.ocrConfidence ?? 85) >= 50
                       ? 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
                       : 'bg-rose-500/15 border border-rose-500/30 text-rose-400'
                   }`}
                 >
                   <CheckCircle2 size={11} />
-                  <span>{session.ocrConfidence || 0}% OCR Confidence</span>
+                  <span>{session.ocrConfidence ?? 85}% OCR Confidence</span>
                 </span>
               </div>
 

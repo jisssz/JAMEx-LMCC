@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -15,7 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import ZenoxNav from '../components/ui/ZenoxNav';
-import { ImageComparisonSlider } from '../components/ui/ImageComparisonSlider';
+import { PackageComparison, validatePackageUpload } from './Scan';
 import { useImage } from '../context/ImageContext';
 import {
   evaluateAndEnhancePackageImage,
@@ -77,8 +77,11 @@ export const ImageEnhancement: React.FC = () => {
     setCapturedImage,
     setPanelEnhancement,
     setPanelOcrSource,
-    addPanel,
   } = useImage();
+  const [uploadError, setUploadError] = useState('');
+  const [compare, setCompare] = useState(true);
+  const selection = useRef(0);
+  const evaluationRequest = useRef(0);
 
   const [activeTab, setActiveTab] = useState<'upload' | 'camera'>('upload');
   const [selectedSample, setSelectedSample] = useState<string>('lays');
@@ -100,9 +103,16 @@ export const ImageEnhancement: React.FC = () => {
 
   // Run evaluation on initial load or image change
   const runEvaluation = async (image: Blob | File) => {
+    const request = ++evaluationRequest.current;
     setIsProcessing(true);
+    setEvaluation(null);
+    setCurrentEnhancedUrl('');
     try {
       const result = await evaluateAndEnhancePackageImage(image);
+      if (request !== evaluationRequest.current) {
+        if (result.enhancedPreviewUrl) URL.revokeObjectURL(result.enhancedPreviewUrl);
+        return;
+      }
       setEvaluation(result);
       if (result.enhancedPreviewUrl) {
         setCurrentEnhancedUrl(result.enhancedPreviewUrl);
@@ -112,44 +122,52 @@ export const ImageEnhancement: React.FC = () => {
         setPanelEnhancement(panel.id, result.enhancedBlob);
       }
     } catch (err) {
+      if (request === evaluationRequest.current) setUploadError('Image enhancement failed. Please choose a readable image and try again.');
       console.warn('Evaluation failed:', err);
     } finally {
-      setIsProcessing(false);
+      if (request === evaluationRequest.current) setIsProcessing(false);
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (file) {
+      const request = ++selection.current;
+      try { await validatePackageUpload(file); } catch (error) {
+        if (request === selection.current) setUploadError((error as Error).message);
+        return;
+      }
+      if (request !== selection.current) return;
+      setUploadError('');
       setCapturedImage(file);
-      addPanel(file, 'front');
-      const url = URL.createObjectURL(file);
-      setCurrentOriginalUrl(url);
-      setCurrentEnhancedUrl(url);
       setSelectedSample('');
-      void runEvaluation(file);
     }
   };
 
   const handleSelectSample = async (sample: SamplePackage) => {
-    setSelectedSample(sample.id);
-    setCurrentOriginalUrl(sample.imageUrl);
-    setCurrentEnhancedUrl(sample.enhancedUrl);
+    const request = ++selection.current;
 
     try {
       const response = await fetch(sample.imageUrl);
+      if (!response.ok) throw new Error('Sample unavailable');
       const blob = await response.blob();
       const file = new File([blob], `${sample.id}.png`, { type: blob.type || 'image/png' });
+      await validatePackageUpload(file);
+      if (request !== selection.current) return;
+      setUploadError('');
+      setSelectedSample(sample.id);
+      setCurrentOriginalUrl(sample.imageUrl);
       setCapturedImage(file);
-      addPanel(file, 'front');
-      void runEvaluation(file);
     } catch (err) {
+      if (request === selection.current) setUploadError('Unable to load sample image. Please upload an image.');
       console.warn('Failed to load sample image:', err);
     }
   };
 
   const handleApplyEnhancedForInspection = () => {
-    const panel = panels[0] || (capturedImage ? { id: 'front-panel', blob: capturedImage } : null);
+    const panel = panels.find(item => item.blob === capturedImage);
+    if (!panel || !evaluation?.enhancedBlob || isProcessing) return;
     if (panel) {
       setPanelOcrSource(panel.id, true);
     }
@@ -158,9 +176,19 @@ export const ImageEnhancement: React.FC = () => {
 
   useEffect(() => {
     if (capturedImage) {
+      setCurrentOriginalUrl(imagePreviewUrl || '');
       void runEvaluation(capturedImage);
     }
+    return () => { ++evaluationRequest.current; };
+  }, [capturedImage]);
+
+  useEffect(() => {
+    if (!capturedImage) void handleSelectSample(samplePackages[1]);
   }, []);
+
+  useEffect(() => () => {
+    if (evaluation?.enhancedPreviewUrl) URL.revokeObjectURL(evaluation.enhancedPreviewUrl);
+  }, [evaluation]);
 
   return (
     <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col justify-between selection:bg-orange-500/30">
@@ -278,8 +306,12 @@ export const ImageEnhancement: React.FC = () => {
                   accept="image/png,image/jpeg,image/webp"
                   className="sr-only"
                   onChange={handleFileUpload}
+                  aria-invalid={Boolean(uploadError)}
+                  aria-describedby={uploadError ? 'enhancement-upload-error' : undefined}
                 />
               </label>
+
+              {uploadError && <p id="enhancement-upload-error" role="alert" className="text-sm text-red-400">{uploadError}</p>}
 
               {/* Try Sample Images Row */}
               <div className="space-y-2.5 pt-1">
@@ -315,12 +347,13 @@ export const ImageEnhancement: React.FC = () => {
           {/* COLUMN 2: CENTER COMPARISON VIEWER (5 / 12 cols)   */}
           {/* -------------------------------------------------- */}
           <div className="lg:col-span-5 xl:col-span-6">
-            <ImageComparisonSlider
-              originalUrl={currentOriginalUrl}
-              enhancedUrl={currentEnhancedUrl}
-              originalLabel="Original Source"
-              enhancedLabel="Working Copy (Enhanced)"
-            />
+            <label className="flex items-center gap-2 text-sm mb-3">
+              <input type="checkbox" checked={compare} onChange={e => setCompare(e.target.checked)} />
+              Compare original and enhanced
+            </label>
+            {compare ? <PackageComparison originalUrl={currentOriginalUrl} enhancedUrl={evaluation ? currentEnhancedUrl : undefined} />
+              : <img src={currentOriginalUrl} alt="Original package" className="w-full h-[400px] object-contain" />}
+            <p role="status" className="text-xs text-slate-400 mt-3">{isProcessing ? 'Processing image locally…' : evaluation ? 'Comparison uses the original and the actual locally processed image.' : 'Select an image to begin.'}</p>
           </div>
 
           {/* -------------------------------------------------- */}
@@ -480,6 +513,7 @@ export const ImageEnhancement: React.FC = () => {
               </p>
 
               <div className="space-y-3 text-xs">
+                <p className="text-slate-400">Enhancement is automatic. Individual processing controls are not currently supported.</p>
                 {/* Option 1: Auto Enhance */}
                 <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
                   <div>
@@ -493,6 +527,7 @@ export const ImageEnhancement: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={autoEnhance}
+                    disabled
                     onChange={(e) => setAutoEnhance(e.target.checked)}
                     className="accent-orange-500 mt-1 cursor-pointer w-4 h-4 rounded"
                   />
@@ -509,6 +544,7 @@ export const ImageEnhancement: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={removeGlare}
+                    disabled
                     onChange={(e) => setRemoveGlare(e.target.checked)}
                     className="accent-orange-500 mt-1 cursor-pointer w-4 h-4 rounded"
                   />
@@ -525,6 +561,7 @@ export const ImageEnhancement: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={sharpenText}
+                    disabled
                     onChange={(e) => setSharpenText(e.target.checked)}
                     className="accent-orange-500 mt-1 cursor-pointer w-4 h-4 rounded"
                   />
@@ -541,6 +578,7 @@ export const ImageEnhancement: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={enhanceResolution}
+                    disabled
                     onChange={(e) => setEnhanceResolution(e.target.checked)}
                     className="accent-orange-500 mt-1 cursor-pointer w-4 h-4 rounded"
                   />
@@ -621,6 +659,7 @@ export const ImageEnhancement: React.FC = () => {
           <button
             type="button"
             onClick={handleApplyEnhancedForInspection}
+            disabled={isProcessing || !evaluation?.enhancedBlob}
             className="w-full lg:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold text-xs flex items-center justify-center gap-2.5 transition shadow-lg shadow-violet-500/25 active:scale-[0.99] cursor-pointer"
           >
             <Layers size={16} />

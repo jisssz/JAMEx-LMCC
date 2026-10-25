@@ -1,0 +1,50 @@
+.india-demo-map .map-panel { min-width: 0; padding: 1.25rem; border: 1px solid #ffffff14; border-radius: 1.5rem; background: #090d16; }
+.india-demo-map .map-demo-badge { display: inline-flex; align-items: center; gap: .4rem; color: #c4b5fd; }
+.india-demo-map .map-disclosure { border-color: #8b5cf64d; color: #ddd6fe; font-size: .875rem; line-height: 1.6; }
+.india-demo-map h2 { display: flex; align-items: center; gap: .5rem; font-weight: 600; font-size: .95rem; }
+.india-demo-map button { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; min-width: 44px; min-height: 44px; padding: .5rem; border-radius: .65rem; color: #e2e8f0; background: #ffffff06; }
+.india-demo-map button:hover { background: #ffffff12; }
+.india-demo-map button:disabled { opacity: .35; cursor: default; }
+.india-demo-map :is(button, select, input, [tabindex]):focus-visible { outline: 2px solid #fb923c; outline-offset: 3px; }
+.india-demo-map .map-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.india-demo-map .map-metrics span, .india-demo-map .map-metrics small { display: block; font-size: .75rem; color: #94a3b8; }
+.india-demo-map .map-metrics strong { display: block; font-size: 1.75rem; margin: .35rem 0; font-variant-numeric: tabular-nums; }
+.india-demo-map .map-workspace { display: grid; gap: 1.25rem; align-items: start; }
+.india-demo-map .map-field { display: grid; gap: .5rem; font-size: .8rem; color: #cbd5e1; }
+.india-demo-map select { width: 100%; min-width: 0; min-height: 44px; padding: .5rem; background: #101725; color: #f1f5f9; border: 1px solid #ffffff20; border-radius: .65rem; }
+.india-demo-map .map-checkbox { display: flex; align-items: center; gap: .65rem; min-height: 44px; font-size: .875rem; cursor: pointer; }
+.india-demo-map input { width: 18px; height: 18px; accent-color: #fb923c; }
+.india-demo-map .map-viewport { width: 100%; height: clamp(280px, 55vw, 490px); overflow: auto; border: 1px solid #ffffff0d; border-radius: 1rem; }
+.india-demo-map .map-viewport svg { display: block; max-width: none; }
+.india-demo-map .map-state { stroke: #64748b; stroke-width: 1; cursor: pointer; }
+.india-demo-map .map-state:is(:hover, :focus-visible, .selected) { stroke: #fff; stroke-width: 3; }
+.india-demo-map .map-fallback { min-height: 280px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 1rem; text-align: center; color: #cbd5e1; }
+.india-demo-map .map-selection { border: 1px solid #fb923c55; background: #fb923c08; border-radius: 1rem; padding: 1rem; font-size: .875rem; line-height: 1.7; overflow-wrap: anywhere; }
+.india-demo-map .map-selection h3 { color: #fdba74; font-weight: 600; }
+.india-demo-map .map-selection ul { margin-top: .5rem; color: #cbd5e1; }
+.india-demo-map .map-table-scroll { overflow-x: auto; }
+.india-demo-map table { width: 100%; border-collapse: collapse; font-size: .75rem; }
+.india-demo-map th, .india-demo-map td { padding: .5rem .2rem; border-bottom: 1px solid #ffffff0d; text-align: right; font-variant-numeric: tabular-nums; }
+.india-demo-map th:first-child { text-align: left; }
+.india-demo-map thead th { color: #94a3b8; font-weight: 500; }
+.india-demo-map tbody th { font-weight: 400; }
+.india-demo-map tbody button { text-align: left; justify-content: start; padding: .25rem; }
+.india-demo-map tr.selected { background: #fb923c10; color: #fdba74; }
+.india-demo-map .map-chart-layout { display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem; }
+.india-demo-map .map-donut { width: 156px; height: 156px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; }
+.india-demo-map .map-donut > span { width: 120px; height: 120px; border-radius: 50%; background: #090d16; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 1.5rem; }
+.india-demo-map .map-donut small { color: #94a3b8; font-size: .65rem; }
+.india-demo-map .map-chart-legend { flex: 1; min-width: 0; font-size: .8rem; }
+.india-demo-map .map-chart-legend li { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin: .75rem 0; }
+.india-demo-map .map-chart-legend strong { margin-left: auto; font-variant-numeric: tabular-nums; }
+.india-demo-map .map-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+@media (min-width: 1100px) {
+  .india-demo-map .map-workspace { grid-template-columns: minmax(220px, .8fr) minmax(360px, 1.5fr) minmax(320px, 1.1fr); }
+  .india-demo-map .map-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 380px) {
+  .india-demo-map .map-panel { padding: .875rem; }
+  .india-demo-map .map-metrics strong { font-size: 1.4rem; }
+  .india-demo-map .map-chart-layout { flex-direction: column; align-items: stretch; }
+  .india-demo-map .map-donut { align-self: center; }
+}
