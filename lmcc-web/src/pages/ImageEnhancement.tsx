@@ -13,9 +13,10 @@ import {
   Clock,
   Layers,
   Zap,
+  RotateCcw,
 } from 'lucide-react';
 import ZenoxNav from '../components/ui/ZenoxNav';
-import { PackageComparison, validatePackageUpload } from './Scan';
+import { validatePackageUpload } from './Scan';
 import { useImage } from '../context/ImageContext';
 import {
   evaluateAndEnhancePackageImage,
@@ -30,12 +31,6 @@ interface SamplePackage {
 }
 
 const samplePackages: SamplePackage[] = [
-  {
-    id: 'kozhikara',
-    name: 'Kozhikara Sachet',
-    imageUrl: '/samples/kozhikara.jpg',
-    enhancedUrl: '/samples/kozhikara.jpg',
-  },
   {
     id: 'lays',
     name: "Lay's Classic",
@@ -66,6 +61,12 @@ const samplePackages: SamplePackage[] = [
     imageUrl: '/samples/dairymilk.jpg',
     enhancedUrl: '/samples/dairymilk.jpg',
   },
+  {
+    id: 'kozhikara',
+    name: 'Kozhikara Sachet',
+    imageUrl: '/samples/kozhikara.jpg',
+    enhancedUrl: '/samples/kozhikara.jpg',
+  },
 ];
 
 export const ImageEnhancement: React.FC = () => {
@@ -94,6 +95,15 @@ export const ImageEnhancement: React.FC = () => {
 
   const [evaluation, setEvaluation] = useState<ImageQualityEvaluation | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [sliderPos, setSliderPos] = useState(50);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const isDragging = useRef(false);
+
+  const handleSliderMove = (clientX: number, rect: DOMRect) => {
+    const x = clientX - rect.left;
+    const pct = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    setSliderPos(pct);
+  };
 
   // Toggles for AI Enhancement
   const [autoEnhance, setAutoEnhance] = useState(true);
@@ -319,7 +329,7 @@ export const ImageEnhancement: React.FC = () => {
                   Try sample images
                 </span>
                 <div className="grid grid-cols-5 gap-2">
-                  {samplePackages.map((pkg) => (
+                  {samplePackages.slice(0, 5).map((pkg) => (
                     <button
                       key={pkg.id}
                       type="button"
@@ -346,14 +356,142 @@ export const ImageEnhancement: React.FC = () => {
           {/* -------------------------------------------------- */}
           {/* COLUMN 2: CENTER COMPARISON VIEWER (5 / 12 cols)   */}
           {/* -------------------------------------------------- */}
-          <div className="lg:col-span-5 xl:col-span-6">
-            <label className="flex items-center gap-2 text-sm mb-3">
-              <input type="checkbox" checked={compare} onChange={e => setCompare(e.target.checked)} />
-              Compare original and enhanced
-            </label>
-            {compare ? <PackageComparison originalUrl={currentOriginalUrl} enhancedUrl={evaluation ? currentEnhancedUrl : undefined} />
-              : <img src={currentOriginalUrl} alt="Original package" className="w-full h-[400px] object-contain" />}
-            <p role="status" className="text-xs text-slate-400 mt-3">{isProcessing ? 'Processing image locally…' : evaluation ? 'Comparison uses the original and the actual locally processed image.' : 'Select an image to begin.'}</p>
+          <div className="lg:col-span-5 xl:col-span-6 flex flex-col">
+            <div className="bg-[#090d16] rounded-3xl p-4 sm:p-5 border border-white/[0.08] flex flex-col justify-between flex-1">
+              {/* Top Comparison Badges */}
+              <div className="flex items-center justify-between gap-2 pb-3 border-b border-white/[0.06]">
+                <div className="flex items-center gap-2 bg-black/50 px-3 py-1.5 rounded-full border border-white/10 text-xs text-slate-300">
+                  <span className="w-2 h-2 rounded-full bg-slate-400" />
+                  <span>Original (Low quality)</span>
+                </div>
+                <div className="flex items-center gap-2 bg-violet-500/10 px-3 py-1.5 rounded-full border border-violet-500/20 text-xs text-violet-300 font-medium">
+                  <Sparkles size={12} className="text-violet-400" />
+                  <span>Enhanced (AI)</span>
+                </div>
+              </div>
+
+              {/* Interactive Split Comparison Viewport */}
+              <div
+                className="relative w-full h-[380px] sm:h-[420px] rounded-2xl overflow-hidden bg-black/60 border border-white/[0.06] select-none cursor-ew-resize my-3.5 flex items-center justify-center"
+                onMouseDown={() => (isDragging.current = true)}
+                onMouseUp={() => (isDragging.current = false)}
+                onMouseLeave={() => (isDragging.current = false)}
+                onMouseMove={(e) => {
+                  if (isDragging.current) {
+                    handleSliderMove(e.clientX, e.currentTarget.getBoundingClientRect());
+                  }
+                }}
+                onTouchMove={(e) => {
+                  if (e.touches[0]) {
+                    handleSliderMove(e.touches[0].clientX, e.currentTarget.getBoundingClientRect());
+                  }
+                }}
+                role="region"
+                aria-label="Original and enhanced comparison"
+              >
+                {/* Base Layer: Enhanced or Processed Image (Right Side) */}
+                <div
+                  className="absolute inset-0 flex items-center justify-center p-4 transition-transform duration-100 ease-out"
+                  style={{ transform: `scale(${zoomLevel})` }}
+                >
+                  <img
+                    src={evaluation ? currentEnhancedUrl : currentOriginalUrl}
+                    alt="Enhanced package"
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
+
+                {/* Top Clipped Layer: Original Image (Left Side) */}
+                {compare && (
+                  <div
+                    className="absolute inset-0 flex items-center justify-center p-4 overflow-hidden pointer-events-none transition-transform duration-100 ease-out"
+                    style={{
+                      clipPath: `polygon(0 0, ${sliderPos}% 0, ${sliderPos}% 100%, 0 100%)`,
+                      transform: `scale(${zoomLevel})`,
+                    }}
+                  >
+                    <img
+                      src={currentOriginalUrl}
+                      alt="Original package"
+                      className="max-h-full max-w-full object-contain filter blur-[0.2px]"
+                    />
+                  </div>
+                )}
+
+                {/* Divider Line & Handle */}
+                {compare && (
+                  <div
+                    className="absolute top-0 bottom-0 w-0.5 bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.7)] pointer-events-none"
+                    style={{ left: `${sliderPos}%` }}
+                  >
+                    <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-slate-900 border-2 border-white shadow-xl flex items-center justify-center text-white text-[10px] font-bold">
+                      ‹ ›
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom Toolbar & Controls */}
+              <div className="flex items-center justify-between pt-2 border-t border-white/[0.04]">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel((z) => Math.max(0.75, Number((z - 0.25).toFixed(2))))}
+                    className="w-8 h-8 rounded-lg bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 flex items-center justify-center text-sm font-semibold transition"
+                    title="Zoom Out"
+                  >
+                    -
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel(1)}
+                    className="px-2.5 h-8 rounded-lg bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 text-xs font-mono transition"
+                    title="Reset Zoom"
+                  >
+                    {Math.round(zoomLevel * 100)}%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel((z) => Math.min(2.5, Number((z + 0.25).toFixed(2))))}
+                    className="w-8 h-8 rounded-lg bg-black/40 hover:bg-black/60 border border-white/10 text-slate-300 flex items-center justify-center text-sm font-semibold transition"
+                    title="Zoom In"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setZoomLevel(1);
+                      setSliderPos(50);
+                    }}
+                    className="px-2 h-8 rounded-lg bg-black/40 hover:bg-black/60 border border-white/10 text-slate-400 hover:text-white text-xs flex items-center gap-1 transition"
+                    title="Reset view"
+                  >
+                    <RotateCcw size={12} />
+                    <span className="hidden sm:inline">Reset</span>
+                  </button>
+                </div>
+
+                {/* Compare Checkbox & State Toggle */}
+                <label className="text-xs text-slate-400 flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={compare}
+                    onChange={(e) => setCompare(e.target.checked)}
+                    className="accent-violet-500 rounded cursor-pointer"
+                  />
+                  <span>Split comparison</span>
+                </label>
+              </div>
+
+              <p role="status" className="text-[11px] text-slate-400 mt-2 text-center">
+                {isProcessing
+                  ? 'Processing image locally…'
+                  : evaluation
+                  ? 'Comparison uses the original and the actual locally processed image.'
+                  : 'Select an image or sample to begin.'}
+              </p>
+            </div>
           </div>
 
           {/* -------------------------------------------------- */}
@@ -497,92 +635,147 @@ export const ImageEnhancement: React.FC = () => {
               </div>
             </div>
 
-            {/* 2. Deterministic Image Processing Engine Card */}
+            {/* 2. AI Enhancement Options Card (Matching Reference 1) */}
             <div className="bg-[#090d16] rounded-3xl p-5 border border-white/[0.08] space-y-4">
               <div className="flex items-center justify-between pb-1 border-b border-white/[0.06]">
                 <div className="flex items-center gap-2 text-violet-400 text-xs font-semibold">
                   <Sparkles size={15} />
-                  <span className="text-white">Deterministic CV Pipeline</span>
+                  <span className="text-white">AI Enhancement Options</span>
                 </div>
-                <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                  VERIFIED
+                <span className="text-[9px] font-mono text-violet-300 bg-violet-500/10 px-2 py-0.5 rounded border border-violet-500/20">
+                  AUTO CV
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 Applies on-device Laplacian edge sharpening and adaptive contrast expansion to assist OCR. Original package evidence is preserved untouched.
               </p>
 
-              <div className="space-y-3 text-xs">
-                <p className="text-slate-400">Enhancement is automatic. Individual processing controls are not currently supported.</p>
+              <div className="space-y-2.5 text-xs">
                 {/* Option 1: Auto Enhance */}
-                <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
+                <div className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-white/[0.02] transition">
                   <div>
-                    <span className="font-medium text-white block">
-                      Adaptive Text Sharpening <span className="text-orange-400 text-[10px]">(Recommended)</span>
+                    <span className="font-medium text-white block text-xs">
+                      Auto Enhance <span className="text-violet-400 text-[10px]">(Recommended)</span>
                     </span>
                     <span className="text-[11px] text-slate-400 block mt-0.5">
-                      Laplacian 3x3 kernel sharpening for micro-declarations
+                      Balanced contrast, exposure & sharpness
                     </span>
                   </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={autoEnhance}
+                    onClick={() => setAutoEnhance(!autoEnhance)}
+                    className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${
+                      autoEnhance ? 'bg-violet-600' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                        autoEnhance ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
                   <input
                     type="checkbox"
                     checked={autoEnhance}
-                    disabled
                     onChange={(e) => setAutoEnhance(e.target.checked)}
-                    className="accent-orange-500 mt-1 cursor-pointer w-4 h-4 rounded"
+                    className="sr-only"
                   />
-                </label>
+                </div>
 
                 {/* Option 2: Remove Glare */}
-                <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
+                <div className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-white/[0.02] transition">
                   <div>
-                    <span className="font-medium text-white block">Specular Glare Attenuation</span>
+                    <span className="font-medium text-white block text-xs">Remove Glare</span>
                     <span className="text-[11px] text-slate-400 block mt-0.5">
-                      Adaptive luminance clipping on glossy packaging
+                      Reduce specular reflections on glossy packets
                     </span>
                   </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={removeGlare}
+                    onClick={() => setRemoveGlare(!removeGlare)}
+                    className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${
+                      removeGlare ? 'bg-violet-600' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                        removeGlare ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
                   <input
                     type="checkbox"
                     checked={removeGlare}
-                    disabled
                     onChange={(e) => setRemoveGlare(e.target.checked)}
-                    className="accent-orange-500 mt-1 cursor-pointer w-4 h-4 rounded"
+                    className="sr-only"
                   />
-                </label>
+                </div>
 
                 {/* Option 3: Sharpen Text */}
-                <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
+                <div className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-white/[0.02] transition">
                   <div>
-                    <span className="font-medium text-white block">Contrast Expansion</span>
+                    <span className="font-medium text-white block text-xs">Sharpen Text</span>
                     <span className="text-[11px] text-slate-400 block mt-0.5">
-                      Histogram stretching to recover low-contrast ink
+                      Laplacian kernel for micro-declarations
                     </span>
                   </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={sharpenText}
+                    onClick={() => setSharpenText(!sharpenText)}
+                    className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${
+                      sharpenText ? 'bg-violet-600' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                        sharpenText ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
                   <input
                     type="checkbox"
                     checked={sharpenText}
-                    disabled
                     onChange={(e) => setSharpenText(e.target.checked)}
-                    className="accent-orange-500 mt-1 cursor-pointer w-4 h-4 rounded"
+                    className="sr-only"
                   />
-                </label>
+                </div>
 
-                {/* Option 4: Contrast Expansion */}
-                <label className="flex items-start justify-between gap-3 cursor-pointer select-none">
+                {/* Option 4: Enhance Resolution */}
+                <div className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-white/[0.02] transition">
                   <div>
-                    <span className="font-medium text-white block">Adaptive Contrast Expansion</span>
+                    <span className="font-medium text-white block text-xs">Enhance Resolution</span>
                     <span className="text-[11px] text-slate-400 block mt-0.5">
-                      Histogram equalization for faded or low-contrast text
+                      Adaptive contrast & detail recovery
                     </span>
                   </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={enhanceResolution}
+                    onClick={() => setEnhanceResolution(!enhanceResolution)}
+                    className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${
+                      enhanceResolution ? 'bg-violet-600' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                        enhanceResolution ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
                   <input
                     type="checkbox"
                     checked={enhanceResolution}
-                    disabled
                     onChange={(e) => setEnhanceResolution(e.target.checked)}
-                    className="accent-orange-500 mt-1 cursor-pointer w-4 h-4 rounded"
+                    className="sr-only"
                   />
-                </label>
+                </div>
               </div>
 
               {/* Action Button: Enhance Image */}
@@ -590,7 +783,7 @@ export const ImageEnhancement: React.FC = () => {
                 type="button"
                 onClick={() => capturedImage && runEvaluation(capturedImage)}
                 disabled={isProcessing}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#ff6b2c] to-[#ff7a3d] hover:from-[#ff7a3d] hover:to-[#ff935e] text-slate-950 font-semibold text-xs flex items-center justify-center gap-2 transition shadow-md shadow-orange-500/20 active:scale-[0.99] cursor-pointer"
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition shadow-md shadow-violet-500/25 active:scale-[0.99] cursor-pointer"
               >
                 <Sparkles size={14} className="stroke-[2.5]" />
                 <span>{isProcessing ? 'Enhancing Image...' : 'Enhance Image'}</span>

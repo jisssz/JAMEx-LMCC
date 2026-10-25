@@ -66,12 +66,12 @@ interface SamplePackage {
 }
 
 const samplePackages: SamplePackage[] = [
-  { id: 'kozhikara', name: 'Kozhikara Sachet', imageUrl: '/samples/kozhikara.jpg' },
   { id: 'lays', name: "Lay's Classic", imageUrl: '/samples/lays.png' },
   { id: 'cola', name: 'Coca-Cola', imageUrl: '/samples/cola.jpg' },
   { id: 'britannia', name: 'Britannia Biscuits', imageUrl: '/samples/britannia.jpg' },
   { id: 'maggi', name: 'Maggi Noodles', imageUrl: '/samples/maggi.jpg' },
   { id: 'dairymilk', name: 'Cadbury Dairy Milk', imageUrl: '/samples/dairymilk.jpg' },
+  { id: 'kozhikara', name: 'Kozhikara Sachet', imageUrl: '/samples/kozhikara.jpg' },
 ];
 
 export const Scan: React.FC = () => {
@@ -371,7 +371,7 @@ export const Scan: React.FC = () => {
                   Try sample images
                 </span>
                 <div className="grid grid-cols-5 gap-2">
-                  {samplePackages.map((pkg) => (
+                  {samplePackages.slice(0, 5).map((pkg) => (
                     <button
                       key={pkg.id}
                       type="button"

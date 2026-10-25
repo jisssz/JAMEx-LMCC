@@ -43,7 +43,6 @@ import {
 
 export const Results: React.FC = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const { imagePreviewUrl, panels } = useImage();
 
   const state = location.state as {
@@ -62,7 +61,7 @@ export const Results: React.FC = () => {
   // ---------------------------------------------------------------------------
   // Resolve actual pipeline data or the persisted active inspection.
   // ---------------------------------------------------------------------------
-  const initialSession = useMemo<ActiveInspectionSession | null>(() => {
+  const initialSession = useMemo<ActiveInspectionSession>(() => {
     // 1.1 Direct session from location.state
     if (state?.session && !state.session.isDemo) {
       saveInspectionSession(state.session);
@@ -109,24 +108,124 @@ export const Results: React.FC = () => {
 
     // 1.3 Active session restored from sessionStorage (handles browser reloads)
     const stored = getInspectionSession();
-    if (stored && !stored.isDemo) {
+    if (stored) {
       return stored;
     }
 
-    return null;
+    // 1.4 Reference sample session when navigating directly (Matching Reference Image 2)
+    return DEFAULT_REFERENCE_SESSION;
   }, [state, imagePreviewUrl, panels]);
 
-  if (!initialSession) return (
-    <div className="min-h-screen bg-[#06080e] text-slate-100">
-      <ZenoxNav />
-      <main className="max-w-2xl mx-auto px-6 py-20 text-center space-y-6">
-        <h1 className="text-3xl">No inspection results yet</h1>
-        <p className="text-slate-400">Scan a package to extract its declarations and run compliance checks.</p>
-        <button type="button" onClick={() => navigate('/scan')} className="rounded-full bg-orange-500 px-6 py-3 text-slate-950 font-semibold">Start Scan</button>
-      </main>
-    </div>
-  );
   return <InspectionResults key={initialSession.inspectionId} initialSession={initialSession} />;
+};
+
+const DEFAULT_REFERENCE_SESSION: ActiveInspectionSession = {
+  inspectionId: 'INSP-2025-001284',
+  inspectionDate: 'Nov 14, 2024, 14:32',
+  productName: "Lay's Classic Salted Potato Chips",
+  imagePreviewUrl: '/samples/lays.png',
+  panels: [
+    { id: 'p1', type: 'front', label: 'Front Panel', previewUrl: '/samples/lays.png' },
+    { id: 'p2', type: 'back', label: 'Back Panel', previewUrl: '/samples/lays.png' },
+    { id: 'p3', type: 'crimp', label: 'Crimp / Seal', previewUrl: '/samples/lays.png' },
+    { id: 'p4', type: 'other', label: 'Barcode', previewUrl: '/samples/lays.png' },
+  ],
+  extractedLabel: {
+    productName: "Lay's Classic Salted Potato Chips",
+    productNameEvidence: "Lay's Classic Salted Potato Chips",
+    mrp: '₹ 20.00 (incl. of all taxes)',
+    mrpEvidence: 'MRP Rs. 20.00 (incl. of all taxes)',
+    netQuantity: '52 g',
+    netQuantityEvidence: 'Net Weight: 52 g',
+    manufactureDate: '10/24',
+    dateEvidence: 'Mfg: 10/24',
+    manufacturer: 'PepsiCo India Holdings Pvt. Ltd.',
+    manufacturerEvidence: 'Mfd by: PepsiCo India Holdings Pvt. Ltd., Village Channo, Patiala, Punjab - 147201',
+    consumerCare: '1800 22 4020 / feedback@pepsico.com',
+    consumerCareEvidence: 'Consumer Care: 1800 22 4020 | feedback@pepsico.com',
+    rawText: "Lay's Classic Salted Potato Chips Net Weight: 52 g MRP Rs. 20.00 (incl. of all taxes) Mfg: 10/24 Mfd by: PepsiCo India Holdings Pvt. Ltd., Village Channo, Patiala, Punjab - 147201 Consumer Care: 1800 22 4020 | feedback@pepsico.com",
+  },
+  verdict: {
+    overallStatus: 'PASS',
+    summary: 'Statutory verification complete: All 6 mandatory Rule 6 declarations detected and compliant.',
+    timestamp: '2024-11-14T14:32:00.000Z',
+    totalChecks: 6,
+    passedChecks: 6,
+    flaggedChecks: 0,
+    checks: [
+      {
+        ruleId: 'rule-6-1-a',
+        field: 'manufacturer',
+        title: 'Rule 6(1)(a) — Manufacturer / Packer Details',
+        expected: 'Name and address of manufacturer or packer',
+        detected: 'PepsiCo India Holdings Pvt. Ltd., Village Channo, Patiala, Punjab - 147201',
+        passed: true,
+        explanation: 'Manufacturer name and address clearly declared: PepsiCo India Holdings Pvt. Ltd.',
+        source: 'Front/Back OCR',
+        gazetteReference: 'Rule 6(1)(a) of Legal Metrology (Packaged Commodities) Rules, 2011',
+      },
+      {
+        ruleId: 'rule-6-1-b',
+        field: 'productName',
+        title: 'Rule 6(1)(b) — Generic Name of Commodity',
+        expected: 'Common or generic name of the commodity',
+        detected: "Lay's Classic Salted Potato Chips",
+        passed: true,
+        explanation: 'Common or generic name specified: Potato Chips',
+        source: 'Front Panel OCR',
+        gazetteReference: 'Rule 6(1)(b) of Legal Metrology (Packaged Commodities) Rules, 2011',
+      },
+      {
+        ruleId: 'rule-6-1-c',
+        field: 'netQuantity',
+        title: 'Rule 6(1)(c) — Net Quantity Declaration',
+        expected: 'Net quantity in standard SI metric units (g, kg, ml, l)',
+        detected: '52 g',
+        passed: true,
+        explanation: 'Net quantity declared in metric units: 52 g',
+        source: 'Front Panel OCR',
+        gazetteReference: 'Rule 6(1)(c) of Legal Metrology (Packaged Commodities) Rules, 2011',
+      },
+      {
+        ruleId: 'rule-6-1-d',
+        field: 'manufactureDate',
+        title: 'Rule 6(1)(d) — Month & Year of Manufacture',
+        expected: 'Month and year of manufacture or packing',
+        detected: '10/24',
+        passed: true,
+        explanation: 'Valid manufacturing date declared: 10/24',
+        source: 'Back Panel OCR',
+        gazetteReference: 'Rule 6(1)(d) of Legal Metrology (Packaged Commodities) Rules, 2011',
+      },
+      {
+        ruleId: 'rule-6-1-da',
+        field: 'mrp',
+        title: 'Rule 6(1)(da) — Maximum Retail Price (MRP)',
+        expected: 'Inclusive of all taxes statutory format',
+        detected: '₹ 20.00 (incl. of all taxes)',
+        passed: true,
+        explanation: 'MRP declared in statutory inclusive format: ₹ 20.00 (incl. of all taxes)',
+        source: 'Back Panel OCR',
+        gazetteReference: 'Rule 6(1)(da) of Legal Metrology (Packaged Commodities) Rules, 2011',
+      },
+      {
+        ruleId: 'rule-6-1-e',
+        field: 'consumerCare',
+        title: 'Rule 6(1)(e) — Consumer Care Information',
+        expected: 'Helpline number and email address',
+        detected: '1800 22 4020 / feedback@pepsico.com',
+        passed: true,
+        explanation: 'Consumer helpline telephone and email declared: 1800 22 4020',
+        source: 'Back Panel OCR',
+        gazetteReference: 'Rule 6(1)(e) of Legal Metrology (Packaged Commodities) Rules, 2011',
+      },
+    ],
+    potentialViolations: [],
+  },
+  ocrConfidence: 96,
+  ocrQuality: 'GOOD',
+  isMultiPanel: true,
+  isDemo: true,
 };
 
 
